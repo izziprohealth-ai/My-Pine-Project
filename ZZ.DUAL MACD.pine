@@ -1,0 +1,42 @@
+//@version=6
+indicator("ZZ.Dual MACD (Current + Weekly)", overlay = false)
+
+// =====================================================
+// 📊 INPUTS
+// =====================================================
+groupMACD1 = "📈 Current Timeframe MACD"
+fast1 = input.int(12, "Fast Length", group=groupMACD1)
+slow1 = input.int(26, "Slow Length", group=groupMACD1)
+signal1 = input.int(9, "Signal Length", group=groupMACD1)
+
+groupMACD2 = "📅 Weekly Fixed MACD"
+fast2 = input.int(12, "Fast Length", group=groupMACD2)
+slow2 = input.int(26, "Slow Length", group=groupMACD2)
+signal2 = input.int(9, "Signal Length", group=groupMACD2)
+
+// =====================================================
+// 🔹 MACD #1 → CURRENT CHART TF
+// =====================================================
+[macd1, signalLine1, hist1] = ta.macd(close, fast1, slow1, signal1)
+
+// =====================================================
+// 🔹 MACD #2 → FIXED WEEKLY TF
+// =====================================================
+weeklyClose = request.security(syminfo.tickerid, "W", close)
+
+[macd2, signalLine2, hist2] =    request.security(syminfo.tickerid, "W",ta.macd(close, fast2, slow2, signal2))
+
+// =====================================================
+// 🎨 PLOTS
+// =====================================================
+
+// Current TF MACD
+plot(macd1, color=color.blue, title="MACD Current")
+plot(signalLine1, color=color.orange, title="Signal Current")
+plot(hist1, style=plot.style_columns,
+     color = hist1 >= 0 ? color.new(color.green, 0) : color.new(color.red, 0),
+     title="Histogram Current")
+
+// Weekly MACD
+plot(macd2, color=color.purple, linewidth=2, title="MACD Weekly")
+plot(signalLine2, color=color.yellow, linewidth=2, title="Signal Weekly")

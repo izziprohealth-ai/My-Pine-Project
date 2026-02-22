@@ -129,7 +129,7 @@ compactTable   = input.bool(false, "ZZ Score compact mode", group = groupMaster)
 
 showAllSignals = input.bool(true,"Show Entry / ReEntry / Exit Signals",group = groupMaster)
 
-showTradeSignals = input.bool(true, "Enable Trading Signal Markers (visual only)", group = groupMaster)
+showTradeSignals = showAllSignals  // unified with the entry/reentry/exit master switch
 
 SESSION_SLAVE_ON = input.bool(true, 'Enable Session Markers', group = groupMaster)
 
@@ -997,15 +997,19 @@ if zzMajorV2InTrade and not zzMajorV2RedX and zzMajorV2RedX[1] and not na(zzMajo
 // =====================================================
 // 👁️ VISIBILITY (V2 TOGGLES — FIXED)
 // =====================================================
-zzMajorV2EntryVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Entry and zzMajorV2Entry
+zzMajorV2EntryAlert = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Entry and zzMajorV2Entry
 
-zzMajorV2ExitVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Exit and zzMajorV2Exit
+zzMajorV2ExitAlert = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Exit and zzMajorV2Exit
+
+zzMajorV2EntryVisible = showTradeSignals and zzMajorV2EntryAlert
+
+zzMajorV2ExitVisible = showTradeSignals and zzMajorV2ExitAlert
 
 // -------------------------------------------------
 // 🎯 PLOTS (ZZ MAJOR V2)
 // -------------------------------------------------
 plotshape(
-    showTradeSignals and zzMajorV2EntryVisible,
+    zzMajorV2EntryVisible,
     title = "ZZ Major V2 Entry",
     text  = "entry",
     style = shape.labelup,
@@ -1017,7 +1021,7 @@ plotshape(
 )
 
 plotshape(
-    showTradeSignals and zzMajorV2ExitVisible,
+    zzMajorV2ExitVisible,
     title = "ZZ Major V2 Exit (Highest X)",
     text  = "exit",
     style = shape.labeldown,
@@ -1210,14 +1214,18 @@ zzMinorExit =
      showZZMinorSignal and
      zzm_turnDown
 
-zzMinorEntryVisible =
+zzMinorEntryAlert =
      showAllSignals and zzMinorEntry and showZZMinorEntry
 
-zzMinorExitVisible =
+zzMinorExitAlert =
      showAllSignals and zzMinorExit and showZZMinorExit
 
+zzMinorEntryVisible = showTradeSignals and zzMinorEntryAlert
+
+zzMinorExitVisible = showTradeSignals and zzMinorExitAlert
+
 plotshape(
-    showTradeSignals and zzMinorEntryVisible,
+    zzMinorEntryVisible,
     title = "ZZ Minor Entry",
     text = "entry",
     style = shape.labelup,
@@ -1229,7 +1237,7 @@ plotshape(
 )
 
 plotshape(
-    showTradeSignals and zzMinorExitVisible,
+    zzMinorExitVisible,
     title = "ZZ Minor Exit",
     text = "exit",
     style = shape.labeldown,
@@ -2664,29 +2672,35 @@ if exitSignalZZCore
 // =====================================================
 // 👁️ ZZ CORE — VISIBILITY GATES (UI ONLY)
 // =====================================================
-zzCoreEntryVisible =
+zzCoreEntryAlert =
      showAllSignals and 
      entrySignalZZCore and
      showZZCoreSignal and
      showZZCoreEntry
 
-zzCoreReEntryVisible =
+zzCoreReEntryAlert =
      showAllSignals and 
      reEntrySignalZZCore and
      showZZCoreSignal and
      showZZCoreReEntry
 
-zzCoreExitVisible =
+zzCoreExitAlert =
      showAllSignals and 
      exitSignalZZCore and
      showZZCoreSignal and
      showZZCoreExit
 
+zzCoreEntryVisible = ZZ_ON and showTradeSignals and zzCoreEntryAlert
+
+zzCoreReEntryVisible = ZZ_ON and showTradeSignals and zzCoreReEntryAlert
+
+zzCoreExitVisible = ZZ_ON and showTradeSignals and zzCoreExitAlert
+
 // =====================================================
 // PLOTS
 // =====================================================
 plotshape(
-    ZZ_ON and showTradeSignals and zzCoreEntryVisible,
+    zzCoreEntryVisible,
     title="ZZ CORE ENTRY",
     text="entry",
     style=shape.labelup,
@@ -2698,7 +2712,7 @@ plotshape(
 )
 
 plotshape(
-    ZZ_ON and showTradeSignals and zzCoreReEntryVisible,
+    zzCoreReEntryVisible,
     title="ZZ CORE REENTRY",
     text="reentry",
     style=shape.labelup,
@@ -2710,7 +2724,7 @@ plotshape(
 )
 
 plotshape(
-    ZZ_ON and showTradeSignals and zzCoreExitVisible,
+    zzCoreExitVisible,
     title="ZZ CORE EXIT",
     text="exit",
     style=shape.labeldown,
@@ -3650,7 +3664,7 @@ if iboExit
 // =====================================================
 
 // 🟢 ZZ CORE ENTRY
-if zzCoreEntryVisible
+if zzCoreEntryAlert
     lastBar_ZZCore :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🟢 ENTRY\n" +
@@ -3687,7 +3701,7 @@ if zzCoreEntryVisible
 
 
 // 🟡 ZZ CORE RE-ENTRY
-if zzCoreReEntryVisible
+if zzCoreReEntryAlert
     lastBar_ZZCore :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🟡 REENTRY ♻️\n" +
@@ -3723,7 +3737,7 @@ if zzCoreReEntryVisible
 
 
 // 🔴 ZZ CORE EXIT
-if zzCoreExitVisible
+if zzCoreExitAlert
     lastBar_ZZCore :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🔴 EXIT ⛔\n" +
@@ -3756,7 +3770,7 @@ if zzCoreExitVisible
 // --------------------------------------------------
 
 // 🟢 ZZ MAJOR V2 — ENTRY
-if zzMajorV2EntryVisible
+if zzMajorV2EntryAlert
     lastBar_ZZMajor :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MAJOR V2 🟪| 🟢 ENTRY\n" +
@@ -3791,7 +3805,7 @@ if zzMajorV2EntryVisible
 
 
 // 🔴 ZZ MAJOR V2 — EXIT (HIGHEST X)
-if zzMajorV2ExitVisible
+if zzMajorV2ExitAlert
     lastBar_ZZMajor :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MAJOR V2 🟪| 🔴 EXIT ⛔ (Highest X)\n" +
@@ -3825,7 +3839,7 @@ if zzMajorV2ExitVisible
 //////////////////////////////////////////////////////
 
 // 🟢 ZZ MINOR ENTRY
-if zzMinorEntryVisible
+if zzMinorEntryAlert
     lastBar_ZZMinor :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MINOR 🟨| 🟢 ENTRY\n" +
@@ -3861,7 +3875,7 @@ if zzMinorEntryVisible
 
 
 // 🔴 ZZ MINOR EXIT
-if zzMinorExitVisible
+if zzMinorExitAlert
     lastBar_ZZMinor :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MINOR 🟨| 🔴 EXIT ⛔\n" +

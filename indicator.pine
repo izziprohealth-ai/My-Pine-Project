@@ -997,15 +997,15 @@ if zzMajorV2InTrade and not zzMajorV2RedX and zzMajorV2RedX[1] and not na(zzMajo
 // =====================================================
 // 👁️ VISIBILITY (V2 TOGGLES — FIXED)
 // =====================================================
-zzMajorV2EntryVisible = ZZ_ON and showAllSignals and showTradeSignals and showZZMajorV2Signal and showZZMajorV2Entry and zzMajorV2Entry
+zzMajorV2EntryVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Entry and zzMajorV2Entry
 
-zzMajorV2ExitVisible = ZZ_ON and showAllSignals and showTradeSignals and showZZMajorV2Signal and showZZMajorV2Exit and zzMajorV2Exit
+zzMajorV2ExitVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Exit and zzMajorV2Exit
 
 // -------------------------------------------------
 // 🎯 PLOTS (ZZ MAJOR V2)
 // -------------------------------------------------
 plotshape(
-    zzMajorV2EntryVisible,
+    showTradeSignals and zzMajorV2EntryVisible,
     title = "ZZ Major V2 Entry",
     text  = "entry",
     style = shape.labelup,
@@ -1017,7 +1017,7 @@ plotshape(
 )
 
 plotshape(
-    zzMajorV2ExitVisible,
+    showTradeSignals and zzMajorV2ExitVisible,
     title = "ZZ Major V2 Exit (Highest X)",
     text  = "exit",
     style = shape.labeldown,
@@ -1211,13 +1211,13 @@ zzMinorExit =
      zzm_turnDown
 
 zzMinorEntryVisible =
-     showAllSignals and showTradeSignals and zzMinorEntry and showZZMinorEntry
+     showAllSignals and zzMinorEntry and showZZMinorEntry
 
 zzMinorExitVisible =
-     showAllSignals and showTradeSignals and zzMinorExit and showZZMinorExit
+     showAllSignals and zzMinorExit and showZZMinorExit
 
 plotshape(
-    zzMinorEntryVisible,
+    showTradeSignals and zzMinorEntryVisible,
     title = "ZZ Minor Entry",
     text = "entry",
     style = shape.labelup,
@@ -1229,7 +1229,7 @@ plotshape(
 )
 
 plotshape(
-    zzMinorExitVisible,
+    showTradeSignals and zzMinorExitVisible,
     title = "ZZ Minor Exit",
     text = "exit",
     style = shape.labeldown,
@@ -2666,21 +2666,18 @@ if exitSignalZZCore
 // =====================================================
 zzCoreEntryVisible =
      showAllSignals and 
-     showTradeSignals and
      entrySignalZZCore and
      showZZCoreSignal and
      showZZCoreEntry
 
 zzCoreReEntryVisible =
      showAllSignals and 
-     showTradeSignals and
      reEntrySignalZZCore and
      showZZCoreSignal and
      showZZCoreReEntry
 
 zzCoreExitVisible =
      showAllSignals and 
-     showTradeSignals and
      exitSignalZZCore and
      showZZCoreSignal and
      showZZCoreExit
@@ -2689,7 +2686,7 @@ zzCoreExitVisible =
 // PLOTS
 // =====================================================
 plotshape(
-    ZZ_ON and zzCoreEntryVisible,
+    ZZ_ON and showTradeSignals and zzCoreEntryVisible,
     title="ZZ CORE ENTRY",
     text="entry",
     style=shape.labelup,
@@ -2701,7 +2698,7 @@ plotshape(
 )
 
 plotshape(
-    ZZ_ON and zzCoreReEntryVisible,
+    ZZ_ON and showTradeSignals and zzCoreReEntryVisible,
     title="ZZ CORE REENTRY",
     text="reentry",
     style=shape.labelup,
@@ -2713,7 +2710,7 @@ plotshape(
 )
 
 plotshape(
-    ZZ_ON and zzCoreExitVisible,
+    ZZ_ON and showTradeSignals and zzCoreExitVisible,
     title="ZZ CORE EXIT",
     text="exit",
     style=shape.labeldown,

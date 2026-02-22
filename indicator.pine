@@ -129,6 +129,8 @@ compactTable   = input.bool(false, "ZZ Score compact mode", group = groupMaster)
 
 showAllSignals = input.bool(true,"Show Entry / ReEntry / Exit Signals",group = groupMaster)
 
+showTradeSignals = input.bool(true, "Enable Trading Signal Markers (visual only)", group = groupMaster)
+
 SESSION_SLAVE_ON = input.bool(true, 'Enable Session Markers', group = groupMaster)
 
 market = input.string('Bursa', 'Select Market', options = ['Bursa', 'US', 'FCPO'], group = groupMaster)
@@ -1003,7 +1005,7 @@ zzMajorV2ExitVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and show
 // 🎯 PLOTS (ZZ MAJOR V2)
 // -------------------------------------------------
 plotshape(
-    zzMajorV2EntryVisible,
+    showTradeSignals and zzMajorV2EntryVisible,
     title = "ZZ Major V2 Entry",
     text  = "entry",
     style = shape.labelup,
@@ -1015,7 +1017,7 @@ plotshape(
 )
 
 plotshape(
-    zzMajorV2ExitVisible,
+    showTradeSignals and zzMajorV2ExitVisible,
     title = "ZZ Major V2 Exit (Highest X)",
     text  = "exit",
     style = shape.labeldown,
@@ -1080,9 +1082,9 @@ BeRC = close < ((high + low) / 2)[1] and close < ((high + low) / 2)[2]
 // =====================
 // BULL / BEAR ARROWS (INDEPENDENT SWITCH)
 // =====================
-plotshape(ZZ_ON and zzMajorON and showBullArrow and BuRC, style = shape.arrowup, location = location.belowbar, color = colEntry, size = size.tiny, editable = true, force_overlay = true)
+plotshape(ZZ_ON and showTradeSignals and zzMajorON and showBullArrow and BuRC, style = shape.arrowup, location = location.belowbar, color = colEntry, size = size.tiny, editable = true, force_overlay = true)
 
-plotshape(ZZ_ON and zzMajorON and showBearArrow and BeRC, style = shape.arrowdown, location = location.abovebar, color = colExit, size = size.tiny, editable = true, force_overlay = true)
+plotshape(ZZ_ON and showTradeSignals and zzMajorON and showBearArrow and BeRC, style = shape.arrowdown, location = location.abovebar, color = colExit, size = size.tiny, editable = true, force_overlay = true)
 
 // =====================
 // PIVOT PRICE LABELS
@@ -1215,7 +1217,7 @@ zzMinorExitVisible =
      showAllSignals and zzMinorExit and showZZMinorExit
 
 plotshape(
-    zzMinorEntryVisible,
+    showTradeSignals and zzMinorEntryVisible,
     title = "ZZ Minor Entry",
     text = "entry",
     style = shape.labelup,
@@ -1227,7 +1229,7 @@ plotshape(
 )
 
 plotshape(
-    zzMinorExitVisible,
+    showTradeSignals and zzMinorExitVisible,
     title = "ZZ Minor Exit",
     text = "exit",
     style = shape.labeldown,
@@ -1661,7 +1663,7 @@ ezpBTST_GAP_OK =
 // BTST_PRO VISUAL MARKER (4–5 PM ONLY)
 // =====================================================
 plotshape(
-     ZZ_ON and showBTST_PRO and ezpBTST_PRO,
+     ZZ_ON and showTradeSignals and showBTST_PRO and ezpBTST_PRO,
      title     = "BTST_PRO Setup",
      style     = shape.labelup,
      location  = location.belowbar,
@@ -1891,17 +1893,17 @@ var bool e2soReentryLocked = false
 /////////////////////////////////////////////////////
 // SIGNAL PLOTS
 /////////////////////////////////////////////////////
-plotshape(ZZ_ON and showE2So and showEntry and entry, 'E2So Entry', shape.labelup, location.belowbar, color.white, text = 'entry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true, editable = true)
-plotshape(ZZ_ON and showE2So and showReEntry and reentry, 'E2So ReEntry', shape.labelup, location.belowbar, color.white, text = 'reentry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
-plotshape(ZZ_ON and showE2So and showExit and exitSignal, 'E2So Exit', shape.labeldown, location.abovebar, color.white, text = 'exit', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
+plotshape(ZZ_ON and showTradeSignals and showE2So and showEntry and entry, 'E2So Entry', shape.labelup, location.belowbar, color.white, text = 'entry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true, editable = true)
+plotshape(ZZ_ON and showTradeSignals and showE2So and showReEntry and reentry, 'E2So ReEntry', shape.labelup, location.belowbar, color.white, text = 'reentry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
+plotshape(ZZ_ON and showTradeSignals and showE2So and showExit and exitSignal, 'E2So Exit', shape.labeldown, location.abovebar, color.white, text = 'exit', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
 
 /////////////////////////////////////////////////////
 // VISUAL EFFECTS
 /////////////////////////////////////////////////////
-bgcolor(ZZ_ON and showBG and entry ? bgEntryCol : na)
-bgcolor(ZZ_ON and showBG and reentry ? bgEntryCol : na)
-bgcolor(ZZ_ON and showBG and exitSignal ? bgExitCol : na)
-barcolor(ZZ_ON and showBarColor and entry ? barEntryCol : na)
+bgcolor(ZZ_ON and showTradeSignals and showBG and entry ? bgEntryCol : na)
+bgcolor(ZZ_ON and showTradeSignals and showBG and reentry ? bgEntryCol : na)
+bgcolor(ZZ_ON and showTradeSignals and showBG and exitSignal ? bgExitCol : na)
+barcolor(ZZ_ON and showTradeSignals and showBarColor and entry ? barEntryCol : na)
 
 // =====================
 // ⚙️ E2Su SETTINGS
@@ -1983,7 +1985,7 @@ if e2suExit
 // 🖊️ VISUAL SIGNALS (FORCE OVERLAY)
 // =====================================================
 plotshape(
-    ZZ_ON and e2suEntry,
+    ZZ_ON and showTradeSignals and e2suEntry,
     title = 'E2Su Entry',
     text = 'entry',
     style = shape.labelup,
@@ -1995,7 +1997,7 @@ plotshape(
 )
 
 plotshape(
-    ZZ_ON and e2suExit and showExit1,
+    ZZ_ON and showTradeSignals and e2suExit and showExit1,
     title = 'E2Su Exit',
     text = 'exit',
     style = shape.labeldown,
@@ -2083,9 +2085,9 @@ plot(ZZ_ON and showAllSignals and iboDD_ON ? ema18 : na, title = 'IBO EMA18', co
 // =====================================================
 // 🔔 ENTRY / EXIT SIGNALS LABELS
 // =====================================================
-plotshape(ZZ_ON and iboDD_ON and iboEntry, title = 'IBO Entry', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
+plotshape(ZZ_ON and showTradeSignals and iboDD_ON and iboEntry, title = 'IBO Entry', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
 
-plotshape(ZZ_ON and iboDD_ON and iboExit, title = 'IBO Exit', text = 'exit', style = shape.labeldown, location = location.abovebar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
+plotshape(ZZ_ON and showTradeSignals and iboDD_ON and iboExit, title = 'IBO Exit', text = 'exit', style = shape.labeldown, location = location.abovebar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
 
 plot(ZZ_ON and showAllSignals and useEMA50 and (e2suDD_ON or iboDD_ON) ? ema50 : na,title = 'EMA 50',color = color.white,linewidth = 2,force_overlay = true)
 
@@ -2123,10 +2125,10 @@ plot(
 // =====================================================
 // 🌊 EW ENTRY / EXIT LABELS
 // =====================================================
-if ZZ_ON and ewEntry
+if ZZ_ON and showTradeSignals and ewEntry
     label.new(bar_index, zigzag, 'entry', style = label.style_label_up, size = size.small, textcolor = color.rgb(0, 0, 0), color = color.new(color.lime, 0), force_overlay = true)
 
-if ZZ_ON and ewExit
+if ZZ_ON and showTradeSignals and ewExit
     label.new(bar_index, zigzag, 'exit', style = label.style_label_down, size = size.small, textcolor = color.rgb(0, 0, 0), color = color.new(color.lime, 0), force_overlay = true)
 
 // ==================================================
@@ -2684,7 +2686,7 @@ zzCoreExitVisible =
 // PLOTS
 // =====================================================
 plotshape(
-    ZZ_ON and zzCoreEntryVisible,
+    ZZ_ON and showTradeSignals and zzCoreEntryVisible,
     title="ZZ CORE ENTRY",
     text="entry",
     style=shape.labelup,
@@ -2696,7 +2698,7 @@ plotshape(
 )
 
 plotshape(
-    ZZ_ON and zzCoreReEntryVisible,
+    ZZ_ON and showTradeSignals and zzCoreReEntryVisible,
     title="ZZ CORE REENTRY",
     text="reentry",
     style=shape.labelup,
@@ -2708,7 +2710,7 @@ plotshape(
 )
 
 plotshape(
-    ZZ_ON and zzCoreExitVisible,
+    ZZ_ON and showTradeSignals and zzCoreExitVisible,
     title="ZZ CORE EXIT",
     text="exit",
     style=shape.labeldown,

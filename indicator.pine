@@ -129,7 +129,7 @@ compactTable   = input.bool(false, "ZZ Score compact mode", group = groupMaster)
 
 showAllSignals = input.bool(true,"Show Entry / ReEntry / Exit Signals",group = groupMaster)
 
-showTradeSignals = input.bool(true, "Enable Trading Signal Markers (visual only)", group = groupMaster)
+showTradeSignals = showAllSignals  // unified with the entry/reentry/exit master switch
 
 SESSION_SLAVE_ON = input.bool(true, 'Enable Session Markers', group = groupMaster)
 

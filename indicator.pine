@@ -2859,20 +2859,30 @@ var bool alert_FCPO = false
 // =====================================================
 
 // E2 engines
-var int lastBar_E2Su          = na
-var int lastBar_E2SoEntry    = na
-var int lastBar_E2SoReentry  = na
-var int lastBar_E2SoExit     = na
+var int lastBar_E2SuEntry      = na
+var int lastBar_E2SuExit       = na
+var int lastBar_E2SoEntry      = na
+var int lastBar_E2SoReentry    = na
+var int lastBar_E2SoExit       = na
 
 // ZZ engines
-var int lastBar_ZZCore       = na
-var int lastBar_ZZMajor      = na
-var int lastBar_ZZMinor      = na
+var int lastBar_ZZCoreEntry    = na
+var int lastBar_ZZCoreReEntry  = na
+var int lastBar_ZZCoreExit     = na
+var int lastBar_ZZMajorEntry   = na
+var int lastBar_ZZMajorExit    = na
+var int lastBar_ZZMinorEntry   = na
+var int lastBar_ZZMinorExit    = na
 
 // Other systems
-var int lastBar_UTC          = na
-var int lastBar_IBO          = na
-var int lastBar_BTST         = na
+var int lastBar_UTCBullCross   = na
+var int lastBar_DTCBearCross   = na
+var int lastBar_UTCBearWeak    = na
+var int lastBar_UTCReentry     = na
+var int lastBar_IBOEntry       = na
+var int lastBar_IBOExit        = na
+var int lastBar_BTSTGap        = na
+var int lastBar_BTSTEntry      = na
 
 // =====================================================
 // 🔄 ALERT RESET — ONCE PER BAR
@@ -3415,7 +3425,7 @@ if ZZ_ON and showScoreTable and (barstate.islast or barstate.isfirst)
 
 // 🟢 E2Su ENTRY
 if e2suEntry and not e2suEntryLocked
-    lastBar_E2Su := f_fireAlert(
+    lastBar_E2SuEntry := f_fireAlert(
             true,
             alertSymbol + " | E2Su 🟩| 🟢 ENTRY\n" +
             alertHeader + " " + complianceLabel + "\n" +
@@ -3443,7 +3453,7 @@ if e2suEntry and not e2suEntryLocked
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_E2Su
+            lastBar_E2SuEntry
     )
 
     e2suEntryLocked := true
@@ -3453,7 +3463,7 @@ if e2suEntry and not e2suEntryLocked
 
 // 🔴 E2Su EXIT
 if e2suExit and e2suEntryLocked
-    lastBar_E2Su :=f_fireAlert(
+    lastBar_E2SuExit :=f_fireAlert(
             true,
             alertSymbol + " | E2Su 🟩| 🔴 EXIT ⛔\n" +
             alertHeader + " " + complianceLabel + "\n" +
@@ -3475,7 +3485,7 @@ if e2suExit and e2suEntryLocked
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_E2Su
+            lastBar_E2SuExit
     )
 
     e2suEntryLocked := false
@@ -3596,7 +3606,7 @@ if exitSignal and e2soEntryLocked
 
 // 🟢 IBO ENTRY
 if iboEntry
-    lastBar_IBO :=f_fireAlert(
+    lastBar_IBOEntry :=f_fireAlert(
             true,
             alertSymbol + " | IBO 🟦| 🟢 ENTRY\n" +
             alertHeader + " " + complianceLabel + "\n" +
@@ -3624,7 +3634,7 @@ if iboEntry
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_IBO
+            lastBar_IBOEntry
     )
     highPriorityAlertFired := true
 
@@ -3632,7 +3642,7 @@ if iboEntry
 
 // 🔴 IBO EXIT
 if iboExit
-    lastBar_IBO :=f_fireAlert(
+    lastBar_IBOExit :=f_fireAlert(
             true,
             alertSymbol + " | IBO 🟦| 🔴 EXIT ⛔\n" +
             alertHeader + " " + complianceLabel + "\n" +
@@ -3654,7 +3664,7 @@ if iboExit
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_IBO
+            lastBar_IBOExit
     )
     highPriorityAlertFired := true
 
@@ -3665,7 +3675,7 @@ if iboExit
 
 // 🟢 ZZ CORE ENTRY
 if zzCoreEntryAlert
-    lastBar_ZZCore :=f_fireAlert(
+    lastBar_ZZCoreEntry :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🟢 ENTRY\n" +
             alertHeader + " " + complianceLabel + "\n\n" +
@@ -3693,7 +3703,7 @@ if zzCoreEntryAlert
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_ZZCore
+            lastBar_ZZCoreEntry
     )
     highPriorityAlertFired := true
 
@@ -3702,7 +3712,7 @@ if zzCoreEntryAlert
 
 // 🟡 ZZ CORE RE-ENTRY
 if zzCoreReEntryAlert
-    lastBar_ZZCore :=f_fireAlert(
+    lastBar_ZZCoreReEntry :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🟡 REENTRY ♻️\n" +
             alertHeader + " " + complianceLabel + "\n\n" +
@@ -3730,7 +3740,7 @@ if zzCoreReEntryAlert
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_ZZCore
+            lastBar_ZZCoreReEntry
     )
     highPriorityAlertFired := true
 
@@ -3738,7 +3748,7 @@ if zzCoreReEntryAlert
 
 // 🔴 ZZ CORE EXIT
 if zzCoreExitAlert
-    lastBar_ZZCore :=f_fireAlert(
+    lastBar_ZZCoreExit :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🔴 EXIT ⛔\n" +
             alertHeader + " " + complianceLabel + "\n\n" +
@@ -3760,7 +3770,7 @@ if zzCoreExitAlert
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_ZZCore
+            lastBar_ZZCoreExit
     )
     highPriorityAlertFired := true
 
@@ -3771,7 +3781,7 @@ if zzCoreExitAlert
 
 // 🟢 ZZ MAJOR V2 — ENTRY
 if zzMajorV2EntryAlert
-    lastBar_ZZMajor :=f_fireAlert(
+    lastBar_ZZMajorEntry :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MAJOR V2 🟪| 🟢 ENTRY\n" +
             alertHeader + " " + complianceLabel + "\n\n" +
@@ -3798,7 +3808,7 @@ if zzMajorV2EntryAlert
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: #ZZMajorV2\n\n" +
             "🔗 " + chartLink,
-            lastBar_ZZMajor
+            lastBar_ZZMajorEntry
     )
     highPriorityAlertFired := true
 
@@ -3806,7 +3816,7 @@ if zzMajorV2EntryAlert
 
 // 🔴 ZZ MAJOR V2 — EXIT (HIGHEST X)
 if zzMajorV2ExitAlert
-    lastBar_ZZMajor :=f_fireAlert(
+    lastBar_ZZMajorExit :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MAJOR V2 🟪| 🔴 EXIT ⛔ (Highest X)\n" +
             alertHeader + " " + complianceLabel + "\n\n" +
@@ -3828,7 +3838,7 @@ if zzMajorV2ExitAlert
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: #ZZMajorV2 #HighestX\n\n" +
             "🔗 " + chartLink,
-            lastBar_ZZMajor
+            lastBar_ZZMajorExit
     )
     highPriorityAlertFired := true
 
@@ -3840,7 +3850,7 @@ if zzMajorV2ExitAlert
 
 // 🟢 ZZ MINOR ENTRY
 if zzMinorEntryAlert
-    lastBar_ZZMinor :=f_fireAlert(
+    lastBar_ZZMinorEntry :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MINOR 🟨| 🟢 ENTRY\n" +
             alertHeader + " " + complianceLabel + "\n" +
@@ -3868,7 +3878,7 @@ if zzMinorEntryAlert
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_ZZMinor
+            lastBar_ZZMinorEntry
     )
     highPriorityAlertFired := true
 
@@ -3876,7 +3886,7 @@ if zzMinorEntryAlert
 
 // 🔴 ZZ MINOR EXIT
 if zzMinorExitAlert
-    lastBar_ZZMinor :=f_fireAlert(
+    lastBar_ZZMinorExit :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MINOR 🟨| 🔴 EXIT ⛔\n" +
             alertHeader + " " + complianceLabel + "\n" +
@@ -3898,7 +3908,7 @@ if zzMinorExitAlert
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
             "Tags: " + ezpTags + "\n\n" +
             "🔗 " + chartLink,
-            lastBar_ZZMinor
+            lastBar_ZZMinorExit
     )
     highPriorityAlertFired := true
 
@@ -3911,7 +3921,7 @@ if zzMinorExitAlert
 
 // 🌙 BTST GAP CONFIRMED (NEXT-DAY SETUP)
 if ezpBTST_GAP_OK
-    lastBar_BTST :=f_fireAlert(
+    lastBar_BTSTGap :=f_fireAlert(
             true,
             alertSymbol + " | Yesterday BTST 🟪 ✔ GAP CONFIRMED\n" +
             alertHeader + " " + complianceLabel + "\n\n" +
@@ -3929,7 +3939,7 @@ if ezpBTST_GAP_OK
             "• SL: Below Prev Close\n" +
             "• Mode: Momentum Continuation\n\n" +
             "🔗 " + chartLink,
-            lastBar_BTST
+            lastBar_BTSTGap
     )
     highPriorityAlertFired := true
 
@@ -3937,7 +3947,7 @@ if ezpBTST_GAP_OK
 
 // 🌙 BTST_PRO ENTRY (INTRADAY TRIGGER)
 if ezpBTST_PRO
-    lastBar_BTST :=f_fireAlert(
+    lastBar_BTSTEntry :=f_fireAlert(
             true,
             alertSymbol + " | BTST_PRO 🟪(" + btstMarketLabel + ")\n" +
             alertHeader + " " + complianceLabel + "\n" +
@@ -3964,7 +3974,7 @@ if ezpBTST_PRO
             "• SL: Below Morning High\n" +
             "• Bias: Overnight Hold\n\n" +
             "🔗 " + chartLink,
-            lastBar_BTST
+            lastBar_BTSTEntry
     )
     highPriorityAlertFired := true
 
@@ -3975,8 +3985,8 @@ if ezpBTST_PRO
 // =====================================================
 
 // 🟢 UTC — BULLISH CROSS
-if utcBuy and not alert_UTC_Cross and not highPriorityAlertFired
-    lastBar_UTC :=f_fireAlert(
+if utcBuy and not alert_UTC_Cross
+    lastBar_UTCBullCross :=f_fireAlert(
             true,
             alertSymbol + " | UTC | 🟢 BULLISH CROSS\n" +
             alertHeader + "\n" +
@@ -4001,13 +4011,13 @@ if utcBuy and not alert_UTC_Cross and not highPriorityAlertFired
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
 
             "🔗 " + chartLink,
-            lastBar_UTC
+            lastBar_UTCBullCross
     )
     alert_UTC_Cross := true
 
 // 🔴 DTC — BEARISH CROSS
-if dtcSell and not alert_UTC_Cross and not highPriorityAlertFired
-    lastBar_UTC :=f_fireAlert(
+if dtcSell and not alert_UTC_Cross
+    lastBar_DTCBearCross :=f_fireAlert(
             true,
             alertSymbol + " | DTC | 🔴 BEARISH CROSS\n" +
             alertHeader + "\n" +
@@ -4032,13 +4042,13 @@ if dtcSell and not alert_UTC_Cross and not highPriorityAlertFired
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
 
             "🔗 " + chartLink,
-            lastBar_UTC
+            lastBar_DTCBearCross
     )
 
 
 // 🟡 UTC — BEAR WEAKENING
-if utcBearWeakening and not alert_UTC_Entry  and not highPriorityAlertFired
-    lastBar_UTC :=f_fireAlert(
+if utcBearWeakening and not alert_UTC_Entry
+    lastBar_UTCBearWeak :=f_fireAlert(
             true,
             alertSymbol + " | UTC | 🟡 Bear Weakening\n" +
             alertHeader + "\n" +
@@ -4063,13 +4073,13 @@ if utcBearWeakening and not alert_UTC_Entry  and not highPriorityAlertFired
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
 
             "🔗 " + chartLink,
-            lastBar_UTC
+            lastBar_UTCBearWeak
     )
 
 
 // ♻️ UTC — BULL ZONE CONTINUATION (RE-ENTRY)
-if utcReentry and not  alert_UTC_Reentry and not highPriorityAlertFired
-    lastBar_UTC :=f_fireAlert(
+if utcReentry and not  alert_UTC_Reentry
+    lastBar_UTCReentry :=f_fireAlert(
             true,
             alertSymbol + " | UTC | ♻️ Bull Zone Continuation\n" +
             alertHeader + "\n" +
@@ -4094,7 +4104,7 @@ if utcReentry and not  alert_UTC_Reentry and not highPriorityAlertFired
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
 
             "🔗 " + chartLink,
-            lastBar_UTC
+            lastBar_UTCReentry
     )
 
 // 🔓 UTC LOCK RESET — when bull zone ends

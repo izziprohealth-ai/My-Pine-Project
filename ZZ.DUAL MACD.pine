@@ -13,6 +13,7 @@ groupMACD2 = "📅 Weekly Fixed MACD"
 fast2 = input.int(12, "Fast Length", group=groupMACD2)
 slow2 = input.int(26, "Slow Length", group=groupMACD2)
 signal2 = input.int(9, "Signal Length", group=groupMACD2)
+showWeekly = input.bool(true, "Show Weekly MACD Plot", group=groupMACD2)
 
 // =====================================================
 // 🔹 MACD #1 → CURRENT CHART TF
@@ -38,5 +39,5 @@ plot(hist1, style=plot.style_columns,
      title="Histogram Current")
 
 // Weekly MACD
-plot(macd2, color=color.purple, linewidth=2, title="MACD Weekly")
-plot(signalLine2, color=color.yellow, linewidth=2, title="Signal Weekly")
+plot(showWeekly ? macd2 : na, color=color.purple, linewidth=2, title="MACD Weekly")
+plot(showWeekly ? signalLine2 : na, color=color.yellow, linewidth=2, title="Signal Weekly")

@@ -4158,36 +4158,52 @@ gannBase = input.float(1.00, title = "Gann Base Value", minval = 0.0000001, grou
 var float[] gannSupportMultipliers = array.from(0.02, 0.04, 0.06, 0.08, 0.11, 0.15, 0.19, 0.23, 0.28, 0.34, 0.40, 0.46, 0.53, 0.61, 0.69, 0.77, 0.86, 0.96, 1.06, 1.16, 1.27, 1.39, 1.51, 1.63, 1.76, 1.90, 2.04, 2.18, 2.33, 2.49, 2.65, 2.81, 2.98, 3.16, 3.34, 3.52, 3.71, 3.91, 4.11, 4.31, 4.52, 4.74, 4.96, 5.18, 5.41, 5.65, 5.89, 6.13, 6.38, 6.64, 6.90, 7.16, 7.43, 7.71, 7.99, 8.27, 8.56, 8.86, 9.16, 9.46, 9.77, 10.09, 10.41, 10.73, 11.06, 11.40, 11.74, 12.08)
 var float[] gannResistanceMultipliers = array.from(0.03, 0.05, 0.07, 0.09, 0.13, 0.17, 0.21, 0.25, 0.31, 0.37, 0.43, 0.49, 0.57, 0.65, 0.73, 0.81, 0.91, 1.01, 1.11, 1.21, 1.33, 1.45, 1.57, 1.69, 1.83, 1.97, 2.11, 2.25, 2.41, 2.57, 2.73, 2.89, 3.07, 3.25, 3.43, 3.61, 3.81, 4.01, 4.21, 4.41, 4.63, 4.85, 5.07, 5.29, 5.53, 5.77, 6.01, 6.25, 6.51, 6.77, 7.03, 7.29, 7.57, 7.85, 8.13, 8.41, 8.71, 9.01, 9.31, 9.61, 9.93, 10.25, 10.57, 10.89, 11.23, 11.57, 11.91, 12.25)
 
+gannLevelsAroundPrice = input.int(12, "Gann Levels Around Price", minval = 2, maxval = 40, group = groupMaster)
+
 var line[] gannSupportLines = array.new_line()
 var line[] gannResistanceLines = array.new_line()
-
-f_createGannLines(float[] multipliers, line[] lineStore, color lineColor) =>
-    for i = 0 to array.size(multipliers) - 1
-        level = gannBase * array.get(multipliers, i)
-        lineId = line.new(bar_index - 1, level, bar_index, level, xloc = xloc.bar_index, extend = extend.both, color = lineColor, width = 1)
-        array.push(lineStore, lineId)
-
-f_updateGannLines(float[] multipliers, line[] lineStore, color lineColor) =>
-    for i = 0 to array.size(lineStore) - 1
-        level = gannBase * array.get(multipliers, i)
-        lineId = array.get(lineStore, i)
-        line.set_y1(lineId, level)
-        line.set_y2(lineId, level)
-        line.set_color(lineId, lineColor)
 
 f_deleteGannLines(line[] lineStore) =>
     for i = 0 to array.size(lineStore) - 1
         line.delete(array.get(lineStore, i))
     array.clear(lineStore)
 
-if showGannLines
-    if array.size(gannSupportLines) == 0
-        f_createGannLines(gannSupportMultipliers, gannSupportLines, color.red)
-    if array.size(gannResistanceLines) == 0
-        f_createGannLines(gannResistanceMultipliers, gannResistanceLines, color.blue)
+f_renderGannLines(float[] multipliers, line[] lineStore, color lineColor) =>
+    multiplierCount = array.size(multipliers)
+    if multiplierCount > 0
+        ratio = close / gannBase
+        closestIndex = 0
+        closestDistance = 10e10
 
-    f_updateGannLines(gannSupportMultipliers, gannSupportLines, color.red)
-    f_updateGannLines(gannResistanceMultipliers, gannResistanceLines, color.blue)
+        for i = 0 to multiplierCount - 1
+            currentDistance = math.abs(array.get(multipliers, i) - ratio)
+            if currentDistance < closestDistance
+                closestDistance := currentDistance
+                closestIndex := i
+
+        levelsToShow = int(math.min(gannLevelsAroundPrice, multiplierCount))
+        halfWindow = int(math.floor(levelsToShow / 2))
+        startIndex = int(math.max(0, closestIndex - halfWindow))
+        endIndex = int(math.min(multiplierCount - 1, startIndex + levelsToShow - 1))
+        startIndex := int(math.max(0, endIndex - levelsToShow + 1))
+        requiredLines = int(endIndex - startIndex + 1)
+
+        if array.size(lineStore) != requiredLines
+            f_deleteGannLines(lineStore)
+            for _ = 0 to requiredLines - 1
+                array.push(lineStore, line.new(bar_index - 1, close, bar_index, close, xloc = xloc.bar_index, extend = extend.both, color = lineColor, width = 1))
+
+        for i = 0 to requiredLines - 1
+            multiplierIndex = startIndex + i
+            level = gannBase * array.get(multipliers, multiplierIndex)
+            lineId = array.get(lineStore, i)
+            line.set_y1(lineId, level)
+            line.set_y2(lineId, level)
+            line.set_color(lineId, lineColor)
+
+if showGannLines
+    f_renderGannLines(gannSupportMultipliers, gannSupportLines, color.red)
+    f_renderGannLines(gannResistanceMultipliers, gannResistanceLines, color.blue)
 else
     if array.size(gannSupportLines) > 0
         f_deleteGannLines(gannSupportLines)

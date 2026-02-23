@@ -4167,20 +4167,32 @@ f_createGannLines(float[] multipliers, line[] lineStore, color lineColor) =>
         lineId = line.new(bar_index - 1, level, bar_index, level, xloc = xloc.bar_index, extend = extend.both, color = lineColor, width = 1)
         array.push(lineStore, lineId)
 
-f_updateGannLines(float[] multipliers, line[] lineStore, color lineColor, bool shouldShow) =>
+f_updateGannLines(float[] multipliers, line[] lineStore, color lineColor) =>
     for i = 0 to array.size(lineStore) - 1
         level = gannBase * array.get(multipliers, i)
         lineId = array.get(lineStore, i)
         line.set_y1(lineId, level)
         line.set_y2(lineId, level)
-        line.set_color(lineId, shouldShow ? lineColor : color.new(lineColor, 100))
+        line.set_color(lineId, lineColor)
 
-if barstate.isfirst
-    f_createGannLines(gannSupportMultipliers, gannSupportLines, color.red)
-    f_createGannLines(gannResistanceMultipliers, gannResistanceLines, color.blue)
+f_deleteGannLines(line[] lineStore) =>
+    for i = 0 to array.size(lineStore) - 1
+        line.delete(array.get(lineStore, i))
+    array.clear(lineStore)
 
-f_updateGannLines(gannSupportMultipliers, gannSupportLines, color.red, showGannLines)
-f_updateGannLines(gannResistanceMultipliers, gannResistanceLines, color.blue, showGannLines)
+if showGannLines
+    if array.size(gannSupportLines) == 0
+        f_createGannLines(gannSupportMultipliers, gannSupportLines, color.red)
+    if array.size(gannResistanceLines) == 0
+        f_createGannLines(gannResistanceMultipliers, gannResistanceLines, color.blue)
+
+    f_updateGannLines(gannSupportMultipliers, gannSupportLines, color.red)
+    f_updateGannLines(gannResistanceMultipliers, gannResistanceLines, color.blue)
+else
+    if array.size(gannSupportLines) > 0
+        f_deleteGannLines(gannSupportLines)
+    if array.size(gannResistanceLines) > 0
+        f_deleteGannLines(gannResistanceLines)
 
 
 

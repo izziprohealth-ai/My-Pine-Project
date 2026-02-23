@@ -1,4 +1,4 @@
-//@version=5
+//@version=6
 indicator("Gann Square of 9 Lines EZP", shorttitle="Gann Square of 9 Lines EZP", overlay=true, max_lines_count=500)
 
 src = input.source(close, "Source")

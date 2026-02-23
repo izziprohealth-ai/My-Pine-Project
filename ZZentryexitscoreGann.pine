@@ -4168,24 +4168,37 @@ var line[] resistanceLines = array.new_line()
 createLines(float[] multipliers, line[] lineStore, color lineColor) =>
     for i = 0 to array.size(multipliers) - 1
         level = base * array.get(multipliers, i)
-        lineId = line.new(bar_index - 1, level, bar_index, level, xloc=xloc.bar_index, extend=extend.both, color=lineColor, width=1)
+        lineId = line.new(bar_index - 1, level, bar_index, level, xloc = xloc.bar_index, extend = extend.both, color = lineColor, width = 1)
         array.push(lineStore, lineId)
 
-updateLines(float[] multipliers, line[] lineStore, color lineColor, bool showLines) =>
+updateLines(float[] multipliers, line[] lineStore, color lineColor) =>
     for i = 0 to array.size(lineStore) - 1
         level = base * array.get(multipliers, i)
         lineId = array.get(lineStore, i)
         line.set_y1(lineId, level)
         line.set_y2(lineId, level)
-        line.set_color(lineId, showLines ? lineColor : color.new(lineColor, 100))
+        line.set_color(lineId, lineColor)
 
-if barstate.isfirst
-    createLines(supportMultipliers, supportLines, color.red)
-    createLines(resistanceMultipliers, resistanceLines, color.blue)
+deleteLines(line[] lineStore) =>
+    for i = 0 to array.size(lineStore) - 1
+        line.delete(array.get(lineStore, i))
+    array.clear(lineStore)
 
-showGannOnChart = ZZ_ON and showGannLines
-updateLines(supportMultipliers, supportLines, color.red, showGannOnChart)
-updateLines(resistanceMultipliers, resistanceLines, color.blue, showGannOnChart)
+showGannOnChart = ZZ_MASTER_ON and showGannLines
+
+if showGannOnChart
+    if array.size(supportLines) == 0
+        createLines(supportMultipliers, supportLines, color.red)
+    if array.size(resistanceLines) == 0
+        createLines(resistanceMultipliers, resistanceLines, color.blue)
+
+    updateLines(supportMultipliers, supportLines, color.red)
+    updateLines(resistanceMultipliers, resistanceLines, color.blue)
+else
+    if array.size(supportLines) > 0
+        deleteLines(supportLines)
+    if array.size(resistanceLines) > 0
+        deleteLines(resistanceLines)
 
 plot(src, color=color.new(color.black, 100), editable=false)
 

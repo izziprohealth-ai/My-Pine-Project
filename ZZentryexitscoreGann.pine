@@ -4166,7 +4166,7 @@ f_gannWindow(float[] multipliers, float sourceValue) =>
     startIndex = 0
     requiredLines = 0
 
-    if multiplierCount > 0
+    if multiplierCount > 0 and gannBase > 0
         ratio = sourceValue / gannBase
         closestIndex = 0
         closestDistance = 10e10
@@ -4186,7 +4186,8 @@ f_gannWindow(float[] multipliers, float sourceValue) =>
 
     [startIndex, requiredLines]
 
-showGannOnChart = ZZ_MASTER_ON and showGannLines
+// Keep Gann visibility independent from ZZ master switch so the menu toggle always works.
+showGannOnChart = showGannLines
 
 [supportStart, supportCount] = f_gannWindow(gannSupportMultipliers, gannSource)
 [resistanceStart, resistanceCount] = f_gannWindow(gannResistanceMultipliers, gannSource)
@@ -4201,7 +4202,7 @@ f_syncGannLines(line[] lineStore, float[] multipliers, int startIndex, int requi
     existingLines = array.size(lineStore)
 
     if existingLines > requiredLines
-        for i = existingLines - 1 to requiredLines
+        for i = existingLines - 1 to requiredLines by -1
             line.delete(array.get(lineStore, i))
             array.remove(lineStore, i)
 
@@ -4232,6 +4233,5 @@ if showGannOnChart
 else
     f_clearGannLines(gannSupportLines)
     f_clearGannLines(gannResistanceLines)
-
 
 

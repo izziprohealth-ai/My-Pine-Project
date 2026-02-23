@@ -1,0 +1,790 @@
+//@version=6
+indicator("ZZ.Intraday Scanner", overlay=true, max_labels_count=500)
+
+// =====================================================
+// 🌍 SCANNER CONTROLS
+// =====================================================
+groupScan = "🌍 Scanner Controls"
+
+rankBy = input.string(
+    "ESS",
+    "Rank By",
+    options = ["ESS", "INTRA", "D.MARU"],
+    tooltip =
+    "ESS    : Enhanced Super Score (overall trade quality)\n" +
+    "INTRA  : True AM/PM intraday control (PM weighted)\n" +
+    "D.MARU : Daily Marubozu strength",
+    group = groupScan
+)
+
+
+scanTF  = input.timeframe("5", "Base Intraday TF", group=groupScan)
+maxRows = input.int(8, "Top N", minval=5, maxval=8, group=groupScan)
+
+// =====================================================
+// 🎨 TABLE STYLE
+// =====================================================
+groupStyle = "🎨 Table Style"
+
+isDark = input.bool(true, "Dark Mode", group=groupStyle)
+
+// 🔤 Text color
+txtColorInput = input.color(color.white, "Table Text Color", group=groupStyle)
+
+// 🎨 Header background
+hdrColorInput = input.color(color.rgb(35,35,35), "Header Background Color", group=groupStyle)
+hdrAlpha      = input.int(0, "Header Transparency (0–100)", minval=0, maxval=100, group=groupStyle)
+
+// 🎨 Cell background
+cellColorInput = input.color(color.rgb(15,15,15), "Cell Background Color", group=groupStyle)
+cellAlpha      = input.int(0, "Cell Transparency (0–100)", minval=0, maxval=100, group=groupStyle)
+
+txtCol  = txtColorInput
+
+hdrBg  = color.new(isDark ? hdrColorInput : color.rgb(230,230,230),hdrAlpha)
+
+cellBg = color.new(isDark ? cellColorInput : color.white,cellAlpha)
+
+// 🔠 Table Text Size
+txtSizeOpt = input.string(
+    "Small",
+    "Table Text Size",
+    options = ["Tiny", "Small", "Normal", "Large"],
+    group = groupStyle
+)
+// 🔠 Text size resolver
+txtSize =
+     txtSizeOpt == "Tiny"   ? size.tiny   :
+     txtSizeOpt == "Small"  ? size.small  :
+     txtSizeOpt == "Large"  ? size.large  :
+                              size.normal
+
+// =====================================================
+// 📍 TABLE POSITION CONTROLS
+// =====================================================
+groupPos = "📍 Table Position"
+
+scannerPosOpt = input.string(
+    "Top Right",
+    "Scanner + Chart Table Position",
+    options = [
+        "Top Right",
+        "Top Left",
+        "Bottom Right",
+        "Bottom Left",
+        "Middle Right",
+        "Middle Left"
+    ],
+    group = groupPos
+)
+
+// =====================================================
+// 🧭 SYMBOL SOURCE MODE
+// =====================================================
+symbolMode = input.string(
+    "Manual",
+    "Symbol Source",
+    options = ["Manual", "Auto"],
+    tooltip =
+    "Manual:\n" +
+    "- Scan up to 15 user-selected stocks\n" +
+    "- Best for intraday watchlists\n\n" +
+    "Auto:\n" +
+    "- Scan predefined intraday universe",
+    group = groupScan
+)
+
+scanGroup = input.string(
+    "Group 1",
+    "Intraday Group",
+    options = ["Group 1", "Group 2", "Group 3", "Group 4", "Group 5"],
+    tooltip =
+    "Select which intraday symbol group to scan.\n\n" +
+    "Each group contains up to 8 stocks\n" +
+    "Optimized for intraday performance.",
+    group = groupScan
+)
+
+// =====================================================
+// ⚙️ FLOW & OSOB SETTINGS (SCANNER)
+// =====================================================
+groupFlow = "⚙️ Flow & OSOB"
+
+iiiLen    = input.int(14, "III Length", group=groupFlow)
+iiiMALen = input.int(20, "III MA Length", group=groupFlow)
+
+pviEmaLen = input.int(20, "PVI EMA Length", group=groupFlow)
+
+
+
+
+f_dailyMarubozu_from_ohlc(o, h, l, c) =>
+    float rng = math.max(h - l, syminfo.mintick)
+    float bodyPct = (c - o) / rng
+    float upWick  = (h - c) / rng
+    float loWick  = (o - l) / rng
+
+    string grade =
+         c <= o ? "F" :
+         bodyPct >= 0.90 and upWick <= 0.03 and loWick <= 0.03 ? "A+" :
+         bodyPct >= 0.80 ? "A" :
+         bodyPct >= 0.70 ? "B" :
+         bodyPct >= 0.60 ? "C" :
+         bodyPct >= 0.50 ? "D" : "E"
+
+    [grade, bodyPct * 100]
+
+
+
+
+// =====================================================
+// 🧭 MANUAL SYMBOLS (EXECUTION FOCUSED | MAX 15)
+// =====================================================
+groupManual = "✍️ Symbols (Max 15)"
+
+sym1  = input.symbol("MYX:GUOCO",   "Symbol 1",  group=groupManual)
+sym2  = input.symbol("MYX:SUNCON",  "Symbol 2",  group=groupManual)
+sym3  = input.symbol("MYX:GAMUDA",  "Symbol 3",  group=groupManual)
+sym4  = input.symbol("MYX:IJM",     "Symbol 4",  group=groupManual)
+sym5  = input.symbol("MYX:UWC",     "Symbol 5",  group=groupManual)
+
+// =====================================================
+// ✍️ MANUAL INTRADAY SYMBOLS
+// =====================================================
+string[] MANUAL_UNIVERSE = array.from(
+    sym1,  sym2,  sym3,  sym4,  sym5
+    
+)
+// =====================================================
+// 🧹 CLEAN MANUAL UNIVERSE
+// =====================================================
+string[] CLEAN_MANUAL = array.new_string()
+
+for i = 0 to array.size(MANUAL_UNIVERSE) - 1
+    s = array.get(MANUAL_UNIVERSE, i)
+    if not na(s) and s != "" and not array.includes(CLEAN_MANUAL, s)
+        array.push(CLEAN_MANUAL, s)
+// ⚡ AUTO INTRADAY UNIVERSE (GROUPED | MAX 8 EACH)
+string[] AUTO_G1 = array.from(
+    "MYX:GUOCO",
+    "MYX:SUNCON",
+    "MYX:GAMUDA",
+    "MYX:IJM",
+    "MYX:KERJAYA",
+    "MYX:PLB",
+    "MYX:AME",
+    "MYX:UWC"
+)
+
+string[] AUTO_G2 = array.from(
+    "MYX:MAYBANK",
+    "MYX:CIMB",
+    "MYX:PBBANK",
+    "MYX:RHBBANK",
+    "MYX:HLBANK",
+    "MYX:ABMB",
+    "MYX:AFFIN",
+    "MYX:BIMB"
+)
+
+string[] AUTO_G3 = array.from(
+    "MYX:TENAGA",
+    "MYX:YTL",
+    "MYX:PMETAL",
+    "MYX:PETGAS",
+    "MYX:GASMSIA",
+    "MYX:DELEUM",
+    "MYX:DIALOG",
+    "MYX:DAYANG"
+)
+
+string[] AUTO_G4 = array.from(
+    "MYX:INARI",
+    "MYX:VITROX",
+    "MYX:GREATEC",
+    "MYX:MPI",
+    "MYX:FRONTKN",
+    "MYX:GENETEC",
+    "MYX:UWC",
+    "MYX:JFTECH"
+)
+
+string[] AUTO_G5 = array.from(
+    "MYX:TOPGLOV",
+    "MYX:KOSSAN",
+    "MYX:SUPERMX",
+    "MYX:HARTALEGA",
+    "MYX:MRDIY",
+    "MYX:ECOSHOP",
+    "MYX:PADINI",
+    "MYX:BONIA"
+)
+
+string[] AUTO_GROUP =
+     scanGroup == "Group 1" ? AUTO_G1 :
+     scanGroup == "Group 2" ? AUTO_G2 :
+     scanGroup == "Group 3" ? AUTO_G3 :
+     scanGroup == "Group 4" ? AUTO_G4 :
+                              AUTO_G5
+
+// =====================================================
+// 🧭 FINAL SCAN UNIVERSE
+// =====================================================
+string[] FINAL_UNIVERSE =
+     symbolMode == "Manual" ? CLEAN_MANUAL : AUTO_GROUP
+
+// =====================================================
+// 📈 INTRADAY INTENSITY (SCANNER-SAFE)
+// =====================================================
+f_iii_score() =>
+    rangeHL = math.max(high - low, syminfo.mintick)
+    iiiRaw  = ((2 * close - high - low) / rangeHL) * volume
+    iii     = ta.sma(iiiRaw, iiiLen)
+    iiiMA   = ta.sma(iii, iiiMALen)
+
+    bias =
+         iii > iiiMA ?  1 :
+         iii < iiiMA ? -1 : 0
+
+    bias
+// =====================================================
+// 📈 PVI FLOW BIAS (SCANNER-SAFE)
+// =====================================================
+f_pvi_bias() =>
+    var float pvi = 100.0
+
+    if volume > volume[1] and close[1] != 0
+        pvi := pvi + ((close - close[1]) / close[1]) * pvi
+
+    pviEMA = ta.ema(pvi, pviEmaLen)
+
+    pvi > pviEMA ? 1 : pvi < pviEMA ? -1 : 0
+
+// =====================================================
+// 🔁 OSOB STATE (SCANNER-SAFE)
+// =====================================================
+f_osob_state() =>
+    rsi = ta.rsi(close, 7)
+    k   = ta.sma(ta.stoch(rsi, rsi, rsi, 14), 3)
+    d   = ta.sma(k, 3)
+
+    state =
+         k > 80 and d > 80 ? "OB" :
+         k < 20 and d < 20 ? "OS" :
+                             "MID"
+
+    state
+
+// =====================================================
+// 🧮 GENERIC SESSION SCORE FUNCTION (GLOBAL)
+// =====================================================
+f_sessionScore(float _o, float _h, float _l, float _c) =>
+    if na(_o) or na(_h) or na(_l) or na(_c)
+        0.0
+    else
+        rng = math.max(_h - _l, syminfo.mintick)
+        _c <= _o ? 0.0 : math.max(0.0, (_c - _o) / rng * 100.0)
+
+// =====================================================
+// 🧠 TRUE AM / PM INTRADAY SCORE (SCANNER-SAFE)
+// =====================================================
+f_intraday_AMPM() =>
+    amStart = timestamp("Asia/Kuala_Lumpur", year, month, dayofmonth, 9, 0)
+    pmStart = timestamp("Asia/Kuala_Lumpur", year, month, dayofmonth, 14, 30)
+
+    var float amO = na
+    var float amH = na
+    var float amL = na
+    var float amC = na
+
+    var float pmO = na
+    var float pmH = na
+    var float pmL = na
+    var float pmC = na
+
+    // 🔄 DAILY RESET (MATCH MASTER)
+    if dayofmonth != dayofmonth[1]
+        amO := na
+        amH := na
+        amL := na
+        amC := na
+        pmO := na
+        pmH := na
+        pmL := na
+        pmC := na
+
+
+    // ── AM SESSION ─────────────────────────
+    isAM = time >= amStart and time < pmStart
+    if isAM
+        amO := na(amO) ? open : amO
+        amH := na(amH) ? high : math.max(amH, high)
+        amL := na(amL) ? low  : math.min(amL, low)
+        amC := close
+    else
+        amO := amO
+
+
+    // ── PM SESSION ─────────────────────────
+    isPM = time >= pmStart
+    if isPM
+        pmO := na(pmO) ? open : pmO
+        pmH := na(pmH) ? high : math.max(pmH, high)
+        pmL := na(pmL) ? low  : math.min(pmL, low)
+        pmC := close
+    else
+        pmO := pmO
+
+
+    amPct = f_sessionScore(amO, amH, amL, amC)
+    pmPct = f_sessionScore(pmO, pmH, pmL, pmC)
+
+    pct = amPct * 0.35 + pmPct * 0.65
+    pct := math.min(100.0, pct)
+
+    grade =
+         pct >= 85 ? "A+" :
+         pct >= 70 ? "A"  :
+         pct >= 60 ? "B"  :
+         pct >= 50 ? "C"  :
+         pct >= 40 ? "D"  : "E"
+
+    [grade, pct, amPct, pmPct]
+
+// =====================================================
+// 🌊 TRUE FLOW SCORE (PVI + III BASED)
+// =====================================================
+f_flowScore() =>
+    // --- Intraday Intensity bias
+    iiiBias = f_iii_score()      // +1 / 0 / -1
+
+    // --- PVI volume bias
+    pviBias = f_pvi_bias()       // +1 / 0 / -1
+
+    // --- Combine participation + volume
+    rawFlow =
+         iiiBias ==  1 and pviBias ==  1 ?  80 :
+         iiiBias == -1 and pviBias == -1 ? -80 :
+         iiiBias ==  1 or  pviBias ==  1 ?  40 :
+         iiiBias == -1 or  pviBias == -1 ? -40 : 0
+
+    // --- Flow grade (unchanged UI logic)
+    flowState =
+         rawFlow >= 60  ? "A"  :
+         rawFlow >= 20  ? "B"   :
+         rawFlow > -20  ? "C" :
+         rawFlow > -60  ? "D"   : "E"
+
+    [rawFlow, flowState]
+
+
+// =====================================================
+// 👑 ESS SUPER SCORE (SCANNER-SAFE)
+// =====================================================
+f_essScore() =>
+    // Momentum from intraday %
+    [_, ip, _, _] = f_intraday_AMPM()
+    momentum = math.max(0.0, math.min(100.0, ip))
+
+    // Flow normalized
+    [flowS, _] = f_flowScore()
+    flowNorm = (flowS + 100) / 2   // -100..100 → 0..100
+
+    // OSOB penalty
+    osob = f_osob_state()
+    osobPenalty =
+         osob == "OB" ? 25 :
+         osob == "OS" ? -10 : 0
+
+    // ESS weighted score
+    rawScore =
+         momentum * 0.55 +
+         flowNorm * 0.35 -
+         osobPenalty
+
+    ess = math.max(0.0, math.min(100.0, rawScore))
+
+    ess
+
+// =====================================================
+// 👑 ESS GRADE (FROM SCORE)
+// =====================================================
+f_essGrade(float ess) =>
+     ess >= 85 ? "A+" :
+     ess >= 70 ? "A"  :
+     ess >= 60 ? "B"  :
+     ess >= 50 ? "C"  :
+     ess >= 40 ? "D"  : "E"
+
+// =====================================================
+// 📊 DATA COLLECTION (SAFE & MEMORY-CLEAN)
+// =====================================================
+float[] rankScores = array.new_float()
+string[] syms      = array.new_string()
+string[] intraGArr = array.new_string()
+float[]  intraPArr = array.new_float()
+string[] maruGArr  = array.new_string()
+float[]  maruPArr  = array.new_float()
+float[] amPArr = array.new_float()
+float[] pmPArr = array.new_float()
+string[] osobArr  = array.new_string()
+float[] flowScoreArr = array.new_float()
+string[] flowGradeArr = array.new_string()
+float[] essScoreArr = array.new_float()
+string[] essGradeArr = array.new_string()
+
+
+
+
+
+
+if barstate.islast
+    // 🔄 clear once per update
+    array.clear(rankScores)
+    array.clear(syms)
+    array.clear(intraGArr)
+    array.clear(intraPArr)
+    array.clear(maruGArr)
+    array.clear(maruPArr) 
+    array.clear(amPArr)
+    array.clear(pmPArr)
+    array.clear(osobArr)
+    array.clear(flowScoreArr)
+    array.clear(flowGradeArr)
+    array.clear(essScoreArr)
+    array.clear(essGradeArr)
+
+
+
+
+
+
+int maxScan = 
+     symbolMode == "Manual"
+     ? math.min(5, array.size(FINAL_UNIVERSE))
+     : math.min(8, array.size(FINAL_UNIVERSE))
+
+
+// =====================================================
+// 🔍 SCAN FUNCTION (FINAL, PURE, SCANNER-SAFE)
+// =====================================================
+f_scan() =>
+    [ig, ip, amP, pmP] = f_intraday_AMPM()
+    [flowS, flowG] = f_flowScore()
+    osob = f_osob_state()
+    ess = f_essScore()
+    [ig, ip, amP, pmP, flowS, flowG, osob, ess]
+
+
+
+for i = 0 to maxScan - 1
+    s = array.get(FINAL_UNIVERSE, i)
+
+    if not na(s) and s != ""
+
+        // 🔹 Intraday scan
+        [ig, ip, amP, pmP, flowS, flowG, osob, ess] = request.security(s, scanTF, f_scan(), ignore_invalid_symbol = true)
+
+        // 🔹 Daily OHLC (once)
+        [oD, hD, lD, cD] = request.security(s, "D", [open, high, low, close],
+                ignore_invalid_symbol = true)
+
+        // 🔹 Daily Marubozu
+        [mg, mp] = f_dailyMarubozu_from_ohlc(oD, hD, lD, cD)
+
+        // 🔹 Rank
+        // 🔹 Rank selection logic
+        rankVal =
+             rankBy == "ESS"    ? ess :
+             rankBy == "INTRA"  ? ip  :
+             rankBy == "D.MARU" ? mp  :
+                                  ess
+
+        essG = f_essGrade(ess)
+
+        array.push(rankScores, na(rankVal) ? 0.0 : rankVal)
+        array.push(syms, s)
+        array.push(intraGArr, ig)
+        array.push(intraPArr, ip)
+        array.push(maruGArr, mg)
+        array.push(maruPArr, mp)
+        array.push(amPArr, amP)
+        array.push(pmPArr, pmP)
+        array.push(flowScoreArr, flowS)
+        array.push(flowGradeArr, flowG)
+        array.push(osobArr, osob)
+        array.push(essScoreArr, ess)
+        array.push(essGradeArr, essG)
+
+
+// =====================================================
+// 🧭 POSITION MAPPER
+// =====================================================
+f_tablePos(string opt) =>
+    opt == "Top Right"    ? position.top_right :opt == "Top Left"     ? position.top_left :opt == "Bottom Right" ? position.bottom_right :opt == "Bottom Left"  ? position.bottom_left :opt == "Middle Right" ? position.middle_right :opt == "Middle Left"  ? position.middle_left :position.top_right
+
+// =====================================================
+// 🔃 SORT
+// =====================================================
+int[] idxs = array.sort_indices(rankScores, order.descending)
+
+// =====================================================
+// 📋 TABLE OBJECT (CREATE ONCE)
+// =====================================================
+var table dash = table.new(
+    f_tablePos(scannerPosOpt),
+    10,
+    maxRows + 3,   // title + header + chart row
+    border_width = 1
+)
+
+// =====================================================
+// 📌 CURRENT CHART SYMBOL (ATTACHED TO SCANNER TABLE)
+// =====================================================
+
+// ── CURRENT CHART SYMBOL VALUES ──────────────────────
+[chartG, chartP, chartAM, chartPM] = request.security(syminfo.tickerid, scanTF, f_intraday_AMPM())
+[oCD, hCD, lCD, cCD] = request.security(syminfo.tickerid, "D", [open, high, low, close])
+[chartMaruG, chartMaruP] = f_dailyMarubozu_from_ohlc(oCD, hCD, lCD, cCD)
+[chartFlowS, chartFlowG] = request.security(syminfo.tickerid, scanTF, f_flowScore())
+chartOSOB = request.security(syminfo.tickerid, scanTF, f_osob_state())
+
+
+
+if barstate.islast
+    // 1️⃣ CLEAR TABLE
+    table.clear(dash, 0, 0)
+
+    // =================================================
+    // TITLE ROW (ROW 0)
+    // =================================================
+    table.cell(dash, 0, 0,"SYMBOL : " + syminfo.ticker + " (CHART)",bgcolor = hdrBg,text_color = txtCol,text_size = size.small)
+    table.merge_cells(dash, 0, 0, 6, 0)
+
+    // =================================================
+    // HEADER ROW (ROW 1)
+    // =================================================
+    table.cell(dash, 0, 1, "RANK",    bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+    table.cell(dash, 1, 1, "SYMBOL",  bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+    table.cell(dash, 2, 1, "AM %",    bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+    table.cell(dash, 3, 1, "PM %",    bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+    table.cell(dash, 4, 1, "INTRA",   bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+    table.cell(dash, 5, 1, "D.MARU",  bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+    table.cell(dash, 6, 1, "ESS(" + rankBy + ")", bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+    table.cell(dash, 7, 1, "FLOW",    bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+    table.cell(dash, 8, 1, "OSOB",    bgcolor = hdrBg, text_color = txtCol, text_size = txtSize)
+
+
+    // =================================================
+    // ⭐ CURRENT CHART SYMBOL ROW (ROW 2)
+    // =================================================
+    chartIntraCol =
+         chartG == "A+" ? color.lime :
+         chartG == "A"  ? color.green :
+         chartG == "B"  ? color.teal :
+         chartG == "C"  ? color.yellow :
+         chartG == "D"  ? color.orange : color.red
+
+    table.cell(dash, 0, 2, "—", bgcolor = color.rgb(30,30,30), text_color = color.yellow, text_size = txtSize)
+    table.cell(dash, 1, 2, syminfo.ticker, bgcolor = color.rgb(30,30,30), text_color = color.yellow, text_size = txtSize)
+    table.cell(dash, 2, 2, str.tostring(chartAM, "#.##") + "%", bgcolor = color.rgb(30,30,30), text_color = color.aqua, text_size = txtSize)
+    table.cell(dash, 3, 2, str.tostring(chartPM, "#.##") + "%", bgcolor = color.rgb(30,30,30), text_color = color.fuchsia, text_size = txtSize)
+    table.cell(dash, 4, 2, str.tostring(chartP, "#.##") + "% " + chartG, bgcolor = color.rgb(30,30,30), text_color = chartIntraCol, text_size = txtSize)
+
+    chartMaruCol =
+     chartMaruG == "A+" ? color.lime :
+     chartMaruG == "A"  ? color.green :
+     chartMaruG == "B"  ? color.teal :
+     chartMaruG == "C"  ? color.yellow :
+     chartMaruG == "D"  ? color.orange : color.red
+
+    table.cell(dash, 5, 2, str.tostring(chartMaruP, "#.##") + "% " + chartMaruG, bgcolor = color.rgb(30,30,30), text_color = chartMaruCol, text_size = txtSize)
+    chartESS = request.security(syminfo.tickerid, scanTF, f_essScore())
+    chartESSG = f_essGrade(chartESS)
+
+    table.cell(dash, 6, 2,str.tostring(chartESS, "#") + "% " + chartESSG,bgcolor = color.rgb(30,30,30),text_color = color.yellow,text_size = txtSize)
+
+
+    chartFlowCol =
+     chartFlowS >= 60  ? color.lime :
+     chartFlowS >= 20  ? color.green :
+     chartFlowS > -20  ? color.gray :
+     chartFlowS > -60  ? color.orange : color.red
+
+    table.cell(dash,7, 2,str.tostring(chartFlowS, "#") + " " + chartFlowG,bgcolor = color.rgb(30,30,30),text_color = chartFlowCol,text_size = txtSize)
+    table.cell(dash,8, 2,chartOSOB,bgcolor = color.rgb(30,30,30),text_color =chartOSOB == "OB" ? color.lime :chartOSOB == "OS" ? color.red  : color.gray,text_size = txtSize)
+
+
+
+    // =================================================
+    // SCANNER DATA ROWS (START FROM ROW 3)
+    // =================================================
+    rows = array.size(idxs) == 0? 0: math.min(maxRows, maxScan)
+
+
+    for i = 0 to rows - 1
+        idx = array.get(idxs, i)
+
+        amP = array.get(amPArr, idx)
+        pmP = array.get(pmPArr, idx)
+        ig  = array.get(intraGArr, idx)
+        ip  = array.get(intraPArr, idx)
+        mg  = array.get(maruGArr, idx)
+        mp  = array.get(maruPArr, idx)
+
+        intraCol =
+             ig == "A+" ? color.lime :
+             ig == "A"  ? color.green :
+             ig == "B"  ? color.teal :
+             ig == "C"  ? color.yellow :
+             ig == "D"  ? color.orange : color.red
+
+        maruCol =
+             mg == "A+" ? color.lime :
+             mg == "A"  ? color.green :
+             mg == "B"  ? color.teal :
+             mg == "C"  ? color.yellow :
+             mg == "D"  ? color.orange : color.red
+
+        row = i + 3
+
+        table.cell(dash, 0, row, str.tostring(i + 1), bgcolor = cellBg, text_color = txtCol, text_size = txtSize)
+        table.cell(dash, 1, row, array.get(syms, idx), bgcolor = cellBg, text_color = txtCol, text_size = txtSize)
+        table.cell(dash, 2, row, str.tostring(amP, "#.##") + "%", bgcolor = cellBg, text_color = color.aqua, text_size = txtSize)
+        table.cell(dash, 3, row, str.tostring(pmP, "#.##") + "%", bgcolor = cellBg, text_color = color.fuchsia, text_size = txtSize)
+        table.cell(dash, 4, row, str.tostring(ip, "#.##") + "% " + ig, bgcolor = cellBg, text_color = intraCol, text_size = txtSize)
+        table.cell(dash, 5, row, str.tostring(mp, "#.##") + "% " + mg, bgcolor = cellBg, text_color = maruCol, text_size = txtSize)
+        essVal = array.get(essScoreArr, idx)
+        essG   = array.get(essGradeArr, idx)
+        table.cell(dash, 6, row,str.tostring(essVal, "#") + "% " + essG,bgcolor = cellBg,text_color = txtCol,text_size = txtSize)
+
+        flowS = array.get(flowScoreArr, idx)
+        flowG = array.get(flowGradeArr, idx)
+
+        flowCol =
+             flowS >= 60  ? color.lime :
+             flowS >= 20  ? color.green :
+             flowS > -20  ? color.gray :
+             flowS > -60  ? color.orange : color.red
+
+        table.cell(dash,7,row,str.tostring(flowS, "#") + " " + flowG,bgcolor = cellBg,text_color = flowCol,text_size = txtSize)
+        table.cell(dash, 8, row, array.get(osobArr, idx), bgcolor = cellBg, text_color = flowCol, text_size = txtSize)
+
+// =====================================================
+// 📘 HOW TO READ ZZ INTRADAY SCANNER (USER GUIDE)
+// =====================================================
+groupNotesIntra = "📘 How to Read Intraday Scanner"
+
+intraScannerNotes = input.text_area(
+     title = "📖 ZZ Intraday Scanner – Usage Guide (Read Only)",
+     defval =
+"ZZ INTRADAY SCANNER – TRADE QUALITY & MOMENTUM DASHBOARD\n\n" +
+
+"OVERVIEW\n" +
+"- Scans multiple symbols on the selected Intraday Timeframe\n" +
+"- Designed for intraday & short-term traders\n" +
+"- Ranks stocks by REAL-TIME trade quality, not prediction\n" +
+"- Helps decide WHERE to deploy capital during the session\n\n" +
+
+"TIMEFRAME LOGIC\n\n" +
+"- All calculations use the selected Scan Timeframe (default: 5m)\n" +
+"- Lower TF = faster feedback, more noise\n" +
+"- Higher TF = stronger confirmation, fewer but higher-quality setups\n\n" +
+
+"COLUMN GUIDE\n\n" +
+
+"RANK\n" +
+"- Position after sorting by ESS (Enhanced Super Score)\n" +
+"- Rank #1 = highest overall intraday trade quality\n\n" +
+
+"SYMBOL\n" +
+"- Ticker symbol being scanned\n\n" +
+
+"AM % (Morning Session Strength)\n" +
+"- Measures price control from market open to midday\n" +
+"- Higher % = buyers dominated the early session\n" +
+"- Weak AM % suggests slow start or early distribution\n\n" +
+
+"PM % (Afternoon Session Strength)\n" +
+"- Measures price control from midday to current bar\n" +
+"- PM is weighted higher in scoring (institutional participation)\n" +
+"- Strong PM % = continuation or late-session push\n\n" +
+
+"INTRA (Intraday Control)\n" +
+"- Measures how strongly price closes within the session range\n" +
+"- Combines AM and PM momentum into a single control metric\n" +
+"- Grades:\n" +
+"  A+/A : Strong buyer control into close\n" +
+"  B/C  : Mixed or balanced control\n" +
+"  D/E  : Seller dominance or rejection\n\n" +
+
+"D.MARU (Daily Marubozu Strength)\n" +
+"- Measures dominance of the DAILY candle body\n" +
+"- High grades indicate strong higher-timeframe conviction\n" +
+"- Confirms whether intraday strength aligns with daily bias\n\n" +
+
+"FLOW (Participation / Money Flow Strength)\n" +
+"- Measures whether intraday price movement is SUPPORTED by real participation\n" +
+"- Derived from:\n" +
+"  • Intraday Intensity Index (III) → execution pressure inside candles\n" +
+"  • Positive Volume Index (PVI) → volume-confirmed price movement\n" +
+"- FLOW reflects COMMITMENT and participation quality, not prediction\n\n" +
+
+"FLOW SCORE INTERPRETATION\n" +
+"- +60 to +100 : Strong participation with volume confirmation\n" +
+"- +20 to +59  : Positive, supportive flow\n" +
+"- -19 to +19  : Neutral / low conviction participation\n" +
+"- -20 to -59  : Weak flow or early distribution\n" +
+"- -60 to -100 : Strong selling pressure / heavy distribution\n\n" +
+
+"FLOW GRADES\n" +
+"- A : Strong participation (ideal flow condition)\n" +
+"- B : Healthy, supportive flow\n" +
+"- C : Neutral / undecided participation\n" +
+"- D : Weak participation or distribution\n" +
+"- E : Strong selling pressure\n\n" +
+
+"OSOB (Overbought / Oversold State)\n" +
+"- Detects exhaustion or snap-back risk using momentum oscillators\n" +
+"- OB  : Overbought (late-stage risk)\n" +
+"- OS  : Oversold (mean-reversion risk)\n" +
+"- MID : Healthy trend condition\n\n" +
+
+"ESS (Enhanced Super Score)\n" +
+"- Composite intraday trade quality score (0–100)\n" +
+"- Combines:\n" +
+"  • Intraday Momentum (AM/PM control)\n" +
+"  • FLOW participation strength\n" +
+"  • OSOB risk penalty\n\n" +
+"ESS GRADES\n" +
+"- A+ (85–100): Elite momentum with strong participation\n" +
+"- A  (70–84) : Strong, tradable intraday trend\n" +
+"- B  (60–69) : Selective trades only\n" +
+"- C  (50–59) : Neutral / wait for clarity\n" +
+"- D/E (<50)  : Weak structure / avoid\n\n" +
+
+"HOW TO USE EFFECTIVELY\n\n" +
+"✓ Start with ESS ≥ 60 to filter quality opportunities\n" +
+"✓ Focus on top-ranked symbols to improve capital efficiency\n" +
+"✓ Confirm INTRA direction with FLOW participation\n" +
+"✓ Use D.MARU to avoid trading against daily conviction\n" +
+"✓ Be cautious when OSOB = OB or OS (risk rising)\n\n" +
+
+"BEST PRACTICE WORKFLOW\n\n" +
+"1. Scan market using ZZ Intraday Scanner\n" +
+"2. Identify top ESS-ranked symbols\n" +
+"3. Open chart for structure & price action confirmation\n" +
+"4. Execute using your own entry / risk model\n\n" +
+
+"IMPORTANT NOTES\n\n" +
+"- This scanner DOES NOT generate buy or sell signals\n" +
+"- It ranks TRADE QUALITY, not certainty or prediction\n" +
+"- Always confirm with structure, context, and risk management\n\n" +
+
+"CORE PRINCIPLE\n" +
+"Price gives the signal.\n" +
+"ESS decides if the trade is worth taking.",
+     group = groupNotesIntra
+)
+
+

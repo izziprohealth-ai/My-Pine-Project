@@ -1,0 +1,2061 @@
+//@version=6
+indicator("RR.Calculator", overlay=true)
+
+groupMaster = "🧩 Master Control"
+
+enableZZCalculator = input.bool(true, "Enable ZZ.Calculator", group=groupMaster)
+enableRRTable      = input.bool(true, "Enable RRTable", group=groupMaster)
+
+groupRR = "📊 RRTable Groups"
+
+rrMarket = input.string(
+    "BURSA",
+    "RRTable Market",
+    options = ["BURSA", "US"],
+    tooltip = "Select which market RRTable should scan",
+    group = groupRR
+)
+
+rrGroupBursa = input.string(
+    "Group 1",
+    "RRTable Bursa Group",
+    options = [
+        "Group 1","Group 2","Group 3","Group 4","Group 5",
+        "Group 6","Group 7","Group 8","Group 9","Group 10",
+        "Group 11","Group 12","Group 13","Group 14","Group 15",
+        "Group 16","Group 17","Group 18","Group 19","Group 20"
+    ],
+    group = groupRR
+)
+
+rrGroupUS = input.string(
+    "Group 1",
+    "RRTable US Group",
+    options = [
+        "Group 1","Group 2","Group 3","Group 4","Group 5",
+        "Group 6","Group 7","Group 8","Group 9","Group 10",
+        "Group 11","Group 12","Group 13","Group 14","Group 15",
+        "Group 16","Group 17","Group 18","Group 19","Group 20"
+    ],
+    group = groupRR
+)
+
+// =====================================================
+// 🧭 RRTable SYMBOL MODE
+// =====================================================
+rrSymbolMode = input.string(
+    "Auto Scan",
+    "RRTable Symbol Source",
+    options = ["Auto Scan", "Manual"],
+    group = groupRR,
+    tooltip = "Auto Scan = predefined universe\nManual = user-selected symbols"
+)
+
+////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////ZZ.Calculator////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+compactMode = input.bool(false, "ZZ.Calculator | Compact Mode",tooltip = "Hide non-essential rows for small screens")
+compactColumns = input.bool(false,"RRTable | Compact Mode",tooltip = "Hide TP2, TP3, ATR & STOP D for small screens")
+// =====================================================
+// 📍 TABLE POSITION CONTROL ZZ.Calculator
+// =====================================================
+groupPosition = "📍 Table Position"
+tableSide = input.string("Right","ZZ.Calculator Position",options = ["Left", "Right"],tooltip = "Move calculator table to left or right side of chart",group = groupPosition)
+// =====================================================
+// 📍 TABLE TEXT SIZE
+// =====================================================
+tableFontSize = input.string("Small","ZZ.Calculator Text Size",options = ["Tiny", "Small", "Normal"],tooltip = "Smaller font recommended for mobile view",group = groupPosition)
+fontSize = tableFontSize == "Tiny"   ? size.tiny  :tableFontSize == "Small"  ? size.small :size.normal
+// =====================================================
+// 📍 TABLE POSITION CONTROL RRTable
+// =====================================================
+tablePosInput = input.string("Top Right","RRTable Position",options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"],group = groupPosition)
+// =====================================================
+// 🔤 TEXT SIZE CONTROL RRTable
+// =====================================================
+textSizeInput = input.string("Small","RRTable Text Size",options = ["Tiny", "Small", "Normal"],group = groupPosition)
+tableTextSize = textSizeInput == "Tiny"   ? size.tiny : textSizeInput == "Normal" ? size.normal : size.small
+// =====================================================
+// ✍️ MANUAL RR SYMBOL INPUTS (MAX 15)
+// =====================================================
+groupManual = "✍️ Manual RR Symbols"
+
+manualSym1  = input.symbol("MYX:PCHEM",   "Bull Stock 1",  group=groupManual)
+manualSym2  = input.symbol("MYX:MAXIS",   "Bull Stock 2",  group=groupManual)
+manualSym3  = input.symbol("MYX:GREATEC", "Bull Stock 3",  group=groupManual)
+manualSym4  = input.symbol("MYX:FRONTKN", "Bull Stock 4",  group=groupManual)
+manualSym5  = input.symbol("MYX:TM",      "Bull Stock 5",  group=groupManual)
+manualSym6  = input.symbol("MYX:HEGROUP", "Bull Stock 6",  group=groupManual)
+manualSym7  = input.symbol("MYX:IAB",     "Bull Stock 7",  group=groupManual)
+manualSym8  = input.symbol("MYX:KOSSAN",  "Bull Stock 8",  group=groupManual)
+manualSym9  = input.symbol("MYX:TOPGLOV", "Bull Stock 9",  group=groupManual)
+manualSym10 = input.symbol("MYX:MAYBANK", "Bull Stock 10", group=groupManual)
+manualSym11 = input.symbol("MYX:CIMB",    "Bull Stock 11", group=groupManual)
+manualSym12 = input.symbol("MYX:PBBANK",  "Bull Stock 12", group=groupManual)
+manualSym13 = input.symbol("MYX:RHBBANK", "Bull Stock 13", group=groupManual)
+manualSym14 = input.symbol("MYX:HLBANK",  "Bull Stock 14", group=groupManual)
+manualSym15 = input.symbol("MYX:PETGAS",  "Bull Stock 15", group=groupManual)
+
+// =====================================================
+// 🔀 ACTIVE GROUP SELECTOR (SINGLE SOURCE OF TRUTH)
+// =====================================================
+rrGroupActive = rrMarket == "BURSA" ? rrGroupBursa : rrGroupUS
+// =====================================================
+// 📉 RRTable ROW BUDGET (HEADER SAFE)
+// =====================================================
+RR_HEADER_ROWS = 2          // row 0 = header, row 1 = chart symbol (LOCKED)
+RR_DATA_ROWS   = compactColumns ? 8 : 18
+RR_MAX_ROWS    = RR_HEADER_ROWS + RR_DATA_ROWS
+
+
+// =====================================================
+// 🔧 INPUTS (CONST ONLY)
+// =====================================================
+marketType = input.string("BURSA","ZZ.Calculator Market Selection",options = ["BURSA", "US", "FCPO"],tooltip = "Select trading market:\n• BURSA = Malaysia stocks (100 shares per lot)\n• US = US stocks\n• FCPO = Crude Palm Oil futures (margin & leverage)")
+
+// =====================================================
+// 🧭 TRADE SCENARIO INPUTS (CLIENT SIMULATION)
+// =====================================================
+stockInput = input.string("","Stock ID (Label)",tooltip = "Leave empty to auto-use chart symbol")
+
+tradeAction = input.string("BUY","Trade Action",options = ["BUY", "HOLD", "SELL"],tooltip = "Simulation only.\nBUY = price moves up\nSELL = price moves down\nHOLD = no price movement")
+
+// =====================================================
+// 🔄 INPUT DIRECTION CONTROL
+// =====================================================
+sizingMode = input.string(
+    "Risk Based",
+    "Position Sizing Mode",
+    options = ["Risk Based", "Lot Based"],
+    tooltip = "Risk Based = position size calculated from Risk % and Stop Loss.\nLot Based = fixed lot/contract size."
+)
+
+inputMode = input.string(
+    "Capital → Lots",
+    "Input Mode",
+    options = ["Capital → Lots", "Lots → Capital"],
+    tooltip = "Choose calculation direction:\n• Capital → Lots = capital drives how many lots you can buy\n• Lots → Capital = lots drive how much capital is required"
+)
+
+capital = input.float(
+    10000,
+    "Capital",
+    step = 100,
+    tooltip = "Total trading capital available.\nUsed to calculate risk amount, position size, and affordability."
+)
+
+lotsInput = input.int(
+    1,
+    "Lots to Buy",
+    minval = 1,
+    tooltip = "BURSA: 1 lot = 100 shares.\nFCPO: 1 lot = 1 futures contract.\nUsed when Input Mode = Lots → Capital or Lot Based sizing."
+)
+
+riskPct = input.float(
+    1.0,
+    "Risk % per Trade",
+    step = 0.1,
+    tooltip = "Maximum % of capital you are willing to lose if Stop Loss is hit.\nExample: 1% of RM10,000 = RM100 max loss."
+)
+
+// ⚠️ CONST INPUTS ONLY (0 = auto)
+entryInput = input.float(
+    0.0,
+    "Entry Price (0 = Auto)",
+    tooltip = "Manual entry price.\nSet to 0 to use current market price."
+)
+
+sellInput = input.float(
+    0.0,
+    "Sell Price (Planned Exit)",
+    tooltip = "Planned sell price to calculate exact profit or loss"
+)
+
+stopInput = input.float(
+    0.0,
+    "Stop Loss Price (0 = Auto)",
+    tooltip = "Manual stop loss price.\nSet to 0 to auto-calculate using fallback logic."
+)
+
+targetInput = input.float(
+    0.0,
+    "Take Profit Price (0 = Auto)",
+    tooltip = "Manual take profit price.\nSet to 0 to auto-calculate using fallback logic."
+)
+
+fxRate = input.float(4.70, "USD ↔ RM Rate (US only)")
+// =====================================================
+// 💼 BROKERAGE FEE SETTINGS
+// =====================================================
+useDefaultFees = input.bool(
+    true,
+    "Use Default Brokerage Fees",
+    tooltip = "ON = Use built-in brokerage model\nOFF = Use custom brokerage values below"
+)
+
+// ── BURSA ──
+bursaBuyRate  = input.float(0.10, "BURSA Buy Brokerage (%) [Custom Only]", step=0.01) / 100
+bursaSellRate = input.float(0.10, "BURSA Sell Brokerage (%)", step=0.01) / 100
+bursaMinFee   = input.float(8.0,  "BURSA Min Brokerage (RM)", step=0.5)
+
+// ── US ──
+usBuyRate     = input.float(0.10, "US Buy Brokerage (%)", step=0.01) / 100
+usSellRate    = input.float(0.10, "US Sell Brokerage (%)", step=0.01) / 100
+usMinFee      = input.float(3.0,  "US Min Brokerage (USD)", step=0.5)
+
+// =====================================================
+// 📦 POSITION SIZING MODE
+// =====================================================
+
+
+bidMoves = input.int(
+    1,
+    "Price Moves: Bid(BURSA), Point(US), Tick(FCPO)",
+    minval = 1,
+    tooltip =
+        "BURSA : Bid moves\n" +
+        "US    : Point moves\n" +
+        "FCPO  : Tick moves"
+)
+
+
+stockLabel = stockInput != "" ? stockInput : syminfo.ticker
+
+// =====================================================
+// 🧠 AUTO PRICE FALLBACK (SERIES SAFE)
+// =====================================================
+entryPrice  = entryInput  != 0 ? entryInput  : close
+stopPrice   = stopInput   != 0 ? stopInput   : close * 0.98
+targetPrice = targetInput != 0 ? targetInput : close * 1.05
+
+buyPrice  = entryPrice
+sellPrice = sellInput != 0 ? sellInput : na
+
+// =====================================================
+// 🧮 LOT & TICK HELPERS (NEW)
+// =====================================================
+
+// Round to nearest Bursa lot (100 shares)
+f_round_lot(shares) =>
+    lot = 100
+    math.round(shares / lot) * lot
+
+// Bursa tick increment rules
+f_bursa_tick(price) =>
+    price < 1.0   ? 0.005 :    price < 10.0  ? 0.010 :    price < 100.0 ? 0.10  : 1.00
+
+// Snap price to valid market tick
+f_snap_price(price) =>
+    tick =        marketType == "BURSA"            ? f_bursa_tick(price)            : (price < 1.0 ? 0.0001 : 0.01)    
+    math.round(price / tick) * tick
+
+// =====================================================
+// 🔢 LOT ↔ CAPITAL AUTO CALCULATION (BURSA)
+// =====================================================
+sharesPerLot = 100
+
+// Capital needed if user inputs LOTS
+capitalFromLots =    marketType == "BURSA"        ? lotsInput * sharesPerLot * entryPrice        : na
+
+// Lots affordable if user inputs CAPITAL
+lotsFromCapital =    marketType == "BURSA" and entryPrice > 0        ? math.floor(capital / (sharesPerLot * entryPrice))        : na
+
+effectiveCapital = inputMode == "Lots → Capital" and not na(capitalFromLots) ? capitalFromLots : capital
+// =====================================================
+// 📐 POSITION SIZE LOGIC (DUAL MODE)
+// =====================================================
+riskAmount = effectiveCapital * (riskPct / 100)
+
+
+// Snap prices to valid ticks (already implemented)
+entryPrice  := f_snap_price(entryPrice)
+stopPrice   := f_snap_price(stopPrice)
+targetPrice := f_snap_price(targetPrice)
+
+riskPerShare   = math.abs(entryPrice - stopPrice)
+rewardPerShare = math.abs(targetPrice - entryPrice)
+
+riskPerShareUS = riskPerShare * fxRate
+// ================================
+// RAW SHARES / CONTRACTS (FIXED)
+// ================================
+rawShares =
+     inputMode == "Lots → Capital"
+     ? (marketType == "BURSA" ? lotsInput * sharesPerLot : lotsInput)
+
+     : inputMode == "Capital → Lots" and sizingMode == "Lot Based"
+         ? marketType == "BURSA"
+             ? math.floor(capital / (entryPrice * sharesPerLot)) * sharesPerLot
+             : math.floor(capital / entryPrice)
+
+     : // Capital → Lots + Risk Based
+       marketType == "BURSA"
+         ? (riskPerShare > 0 ? math.floor(riskAmount / riskPerShare) : 0)
+         : marketType == "US"
+             ? (riskPerShareUS > 0 ? math.floor(riskAmount / riskPerShareUS) : 0)
+             : marketType == "FCPO"
+                 ? (riskPerShare > 0 ? math.floor(riskAmount / riskPerShare) : 0)
+                 : 0
+
+
+shares =
+     marketType == "BURSA" and inputMode != "Lots → Capital" and sizingMode == "Risk Based"
+     ? f_round_lot(rawShares)
+     : rawShares
+
+// =====================================================
+// 💰 BUY VALUE (GROSS)
+// =====================================================
+buyValue = shares * buyPrice
+
+// Position value = buy value (explicit for clarity)
+positionValue = buyValue
+
+///buybrokerage////
+
+buyBrokerage =marketType == "BURSA"? (useDefaultFees? math.max(positionValue * 0.0008, 8): math.max(positionValue * bursaBuyRate, bursaMinFee)): marketType == "US"? (useDefaultFees? math.max(positionValue * 0.001, 3): math.max(positionValue * usBuyRate, usMinFee)): 0
+
+// =====================================================
+// 💸 BUY-SIDE FEES (BURSA / US)
+// =====================================================
+buyClearingFee = marketType == "BURSA" ? buyValue * 0.0003 : 0
+
+buyStampDuty = marketType == "BURSA"? math.min(math.floor(buyValue / 1000), 1000) : 0
+
+buyFees =marketType == "US"? buyBrokerage: buyBrokerage + buyClearingFee + buyStampDuty
+
+
+
+// =====================================================
+// 📏 SELL PRICE DISTANCE (%)
+// =====================================================
+sellDistancePct = na(sellPrice) or buyPrice <= 0 ? na : tradeAction == "BUY" ? ((sellPrice - buyPrice) / buyPrice) * 100 : ((buyPrice - sellPrice) / buyPrice) * 100
+
+// ================= LOT DISPLAY =================
+lotsDisplay = marketType == "BURSA" ? math.round(shares / 100) : shares
+
+
+
+// =====================================================
+// 💰 SELL VALUE (GROSS)
+// =====================================================
+sellValue = na(sellPrice) ? na : sellPrice * shares
+
+// =====================================================
+// 💸 SELL-SIDE FEES (M+ STYLE)
+// =====================================================
+sellBrokerage =marketType == "BURSA"? (useDefaultFees? math.max(sellValue * 0.0008, 8): math.max(sellValue * bursaSellRate, bursaMinFee)): marketType == "US"? (useDefaultFees? math.max(sellValue * 0.001, 3): math.max(sellValue * usSellRate, usMinFee)): 0
+
+
+sellClearingFee =
+     marketType == "BURSA"
+     ? sellValue * 0.0003
+     : 0
+
+
+sellStampDuty =
+     marketType == "BURSA"
+     ? math.min(math.floor(sellValue / 1000), 1000)
+     : 0
+
+sellFees = na(sellValue) ? na : sellBrokerage + sellClearingFee + sellStampDuty
+
+
+// =====================================================
+// 📊 SELL PnL (NET – AFTER FEES, M+ STYLE)
+// =====================================================
+// — FCPO TICK / VALUE logic —
+isFCPO = marketType == "FCPO"
+// Tick and P/L value per contract
+fcpoTickValue = 25  // RM25 per tick per 1 contract – official contract spec :contentReference[oaicite:3]{index=3}
+
+tickSize =isFCPO? 1 : marketType == "BURSA"? f_bursa_tick(entryPrice): (entryPrice < 1.0 ? 0.0001 : 0.01)
+
+// cost per bid (shares or FCPO contracts)
+costPerBid =isFCPO? fcpoTickValue * shares: tickSize * shares
+
+
+
+
+// =====================================================
+// 📊 BID-BASED SCENARIO PnL
+// =====================================================
+bidPnL =    tradeAction == "HOLD"        ? 0        : tradeAction == "BUY"            ? costPerBid * bidMoves            : -costPerBid * bidMoves
+
+// =====================================================
+// 🔐 FCPO SAFETY GUARD (MARGIN CHECK)
+// =====================================================
+fcpoMargin = input.float(7500, "FCPO Margin per Contract (RM)", group="FCPO Settings", step=100)
+contracts = shares
+fcpoMarginRequired = fcpoMargin * shares
+fcpoMarginEnough   = capital >= fcpoMarginRequired
+capitalRequired =marketType == "FCPO"? fcpoMarginRequired: buyValue + buyFees
+capitalEnough   = not na(capitalRequired) and capital >= capitalRequired
+
+// =====================================================
+// 💵 CAPITAL REQUIRED (LOT-BASED REALITY)
+// =====================================================
+tradeExposure =marketType == "FCPO"? buyPrice * shares * fcpoTickValue: buyValue
+
+
+fcpoFeePerContract = input.float(
+    60,
+    "FCPO Fee per Contract (per side)",
+    group = "FCPO Settings",
+    step = 5
+)
+fcpoTotalFees = fcpoFeePerContract * shares * 2  // buy + sell
+// =====================================================
+// 💰 TOTAL FEES (ROUND TRIP)
+// =====================================================
+totalFees =marketType == "FCPO"? fcpoTotalFees: buyFees + sellFees
+// =====================================================
+// 🎯 BREAK-EVEN CALCULATION (AFTER ALL FEES)
+// =====================================================
+
+// For BURSA / US (price-based)
+breakevenPrice =not isFCPO and shares > 0? buyPrice + (buyFees + sellFees) / shares: na
+
+// For FCPO (tick-based)
+fcpoBreakevenTicks =isFCPO and shares > 0? fcpoTotalFees / (fcpoTickValue * shares): na
+
+// =====================================================
+// 📊 PnL
+// =====================================================
+maxLoss =marketType == "FCPO"? (riskPerShare * fcpoTickValue * shares) + fcpoTotalFees: (riskPerShare * shares) + buyFees + sellFees
+
+potentialGain =marketType == "FCPO"? (rewardPerShare * fcpoTickValue * shares) - fcpoTotalFees: (rewardPerShare * shares) - buyFees - sellFees
+
+rrRatio       = maxLoss > 0 ? potentialGain / maxLoss : na
+
+
+sellPnL =na(sellPrice)? na: isFCPO and not fcpoMarginEnough? na: isFCPO? tradeAction == "BUY"? ((sellPrice - buyPrice) * fcpoTickValue * shares) - fcpoTotalFees: ((buyPrice - sellPrice) * fcpoTickValue * shares) - fcpoTotalFees: tradeAction == "BUY"? (sellPrice - buyPrice) * shares - buyFees - sellFees: (buyPrice - sellPrice) * shares - buyFees - sellFees
+
+riskViolation = maxLoss > riskAmount
+// =====================================================
+// 🏷️ MARKET-AWARE MOVE LABELS
+// =====================================================
+moveLabel =marketType == "BURSA" ? "Bid(s)" :marketType == "US"    ? "Point(s)" :"Tick(s)"
+
+pnlMoveLabel =marketType == "BURSA" ? "PnL @ Bids" :marketType == "US"    ? "PnL @ Points" :"PnL @ Ticks"
+
+// =====================================================
+// 🏷️ MARKET-AWARE BID / TICK LABELS (STEP 2)
+// =====================================================
+bidLabel =marketType == "FCPO"  ? "Tick(s)" :marketType == "US"    ? "Price Move(s)" :"Price Tick(s)"
+pnlBidLabel =marketType == "FCPO"  ? "PnL @ Ticks" :marketType == "US"    ? "PnL @ Moves" :"PnL @ Ticks"
+
+// =====================================================
+// 🎨 TABLE VISUAL SETTINGS
+// =====================================================
+tableOpacity = input.int(50, "Table Transparency (0 = Solid, 100 = Invisible)", minval=0, maxval=100)
+textOpacity  = input.int(0,  "Text Transparency (0 = Solid)", minval=0, maxval=100)
+
+textColorNormal = input.color(color.white, "Text Color (Normal)")
+textColorHeader = input.color(color.white, "Text Color (Header)")
+
+tableBg        = color.new(color.black, tableOpacity)
+tableHeaderBg = color.new(color.gray,  tableOpacity)
+
+txtNormal = color.new(textColorNormal, textOpacity)
+txtHeader = color.new(textColorHeader, textOpacity)
+
+// =====================================================
+// 🧱 ROW HELPER (PURE FUNCTION – SAFE)
+// =====================================================
+f_row(_tbl, _row, _label, _value, _bgL, _bgV, _tcL, _tcV) =>
+    table.cell(_tbl, 0, _row, _label, bgcolor=_bgL, text_color=_tcL, text_size=fontSize)
+    table.cell(_tbl, 1, _row, _value, bgcolor=_bgV, text_color=_tcV, text_size=fontSize)
+    _row + 1
+
+
+// =====================================================
+// 📍 TABLE POSITION RESOLUTION
+// =====================================================
+tablePosition =
+     tableSide == "Left"
+     ? position.middle_left
+     : position.middle_right
+
+// =====================================================
+// 📊 DISPLAY TABLE (COMPACT + FULL MODE)
+// =====================================================
+
+// =====================================================
+// 📊 ZZ.Calculator TABLE (SAFE LIFECYCLE)
+// =====================================================
+MAX_ROWS = compactMode ? 16 : 30
+
+var table rrTable = na
+
+// ── CREATE OR RECREATE TABLE ──
+if enableZZCalculator and na(rrTable)
+    rrTable := table.new(tablePosition, 2, MAX_ROWS, border_width = 1)
+
+// ── DELETE TABLE ──
+if not enableZZCalculator and not na(rrTable)
+    table.delete(rrTable)
+    rrTable := na
+
+// ── DRAW TABLE ──
+if enableZZCalculator and not na(rrTable)
+    table.clear(rrTable, 0, 0, 1, MAX_ROWS - 1)
+    int row = 0
+    
+
+
+    // ─── HEADER ───
+    row := f_row(rrTable, row, "Market", marketType, tableHeaderBg, tableBg, txtHeader, txtNormal)
+    row := f_row(rrTable, row, "Stock", stockLabel, tableBg, tableBg, txtNormal, txtNormal)
+    row := f_row(rrTable, row, "Action", tradeAction, tableBg, tableBg, txtNormal, txtNormal)
+
+    // ─── PRICE ───
+    row := f_row(rrTable, row, "Buy Price", str.tostring(buyPrice, "#.###"),
+                 tableBg, tableBg, txtNormal, txtNormal)
+
+    // ─── CAPITAL ───
+    row := f_row(
+        rrTable,
+        row,
+        inputMode == "Lots → Capital" ? "Capital (From Lots)" : "Capital",
+        str.tostring(effectiveCapital, "#,###"),
+        tableBg,
+        color.new(color.green, tableOpacity),
+        txtNormal,
+        color.white
+    )
+
+    // ─── POSITION ───
+    row := f_row(rrTable, row, "Qty", str.tostring(shares),
+                 tableBg, tableBg, txtNormal, txtNormal)
+
+    row := f_row(rrTable, row, "Capital Req",
+                 str.tostring(capitalRequired, "#,###"),
+                 tableBg, tableBg, txtNormal, txtNormal)
+
+
+    row := f_row(rrTable,row,"Position Mode",
+            inputMode == "Lots → Capital"? "Fixed Lots (User)": sizingMode == "Lot Based"? "Capital-Based (Affordable)": "Risk-Based (Stop Driven)",
+            tableBg,color.new(color.gray, tableOpacity),txtNormal,txtNormal
+    )
+
+   // ─── FEES BREAKDOWN (ADVANCED SECTION) ───
+    if not compactMode 
+    // advanced fees block
+
+
+    
+    // =====================
+    // BURSA
+    // =====================
+        if marketType == "BURSA"
+            // BUY
+            row := f_row(rrTable, row, "Buy Brokerage",
+            str.tostring(buyBrokerage, "#.##"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+            row := f_row(rrTable, row, "Buy Clearing",
+            str.tostring(buyClearingFee, "#.##"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+            row := f_row(rrTable, row, "Buy Stamp",
+            str.tostring(buyStampDuty, "#.##"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+            row := f_row(rrTable, row, "Buy Fees (Total)",
+            str.tostring(buyFees, "#.##"),
+            color.new(color.gray, tableOpacity),
+            tableBg, txtHeader, txtNormal)
+
+            // SELL
+            row := f_row(rrTable, row, "Sell Brokerage",
+            str.tostring(sellBrokerage, "#.##"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+            row := f_row(rrTable, row, "Sell Clearing",
+            str.tostring(sellClearingFee, "#.##"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+            row := f_row(rrTable, row, "Sell Stamp",
+            str.tostring(sellStampDuty, "#.##"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+            row := f_row(rrTable, row, "Sell Fees (Total)",
+            str.tostring(sellFees, "#.##"),
+            color.new(color.gray, tableOpacity),
+            tableBg, txtHeader, txtNormal)
+
+    // =====================
+    // US
+    // =====================
+    if marketType == "US"
+        row := f_row(rrTable, row, "Buy Brokerage",
+            str.tostring(buyBrokerage, "#.##"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+        row := f_row(rrTable, row, "Sell Brokerage",
+            str.tostring(sellBrokerage, "#.##"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+        row := f_row(rrTable, row, "Total Fees",
+            str.tostring(buyFees + sellFees, "#.##"),
+            color.new(color.gray, tableOpacity),
+            tableBg, txtHeader, txtNormal)
+
+    // =====================
+    // FCPO
+    // =====================
+    if marketType == "FCPO"
+        row := f_row(rrTable, row, "FCPO Fee / Contract",
+            str.tostring(fcpoFeePerContract, "#"),
+            tableBg, tableBg, txtNormal, txtNormal)
+
+        row := f_row(rrTable, row, "FCPO Total Fees",
+            str.tostring(fcpoTotalFees, "#,###"),
+            color.new(color.gray, tableOpacity),
+            tableBg, txtHeader, txtNormal)
+
+
+
+    // ─── RISK / REWARD ───
+    row := f_row(rrTable, row, "Max Loss", str.tostring(maxLoss, "#.##"),
+                 color.new(color.red, tableOpacity), tableBg, color.white, txtNormal)
+
+    row := f_row(rrTable, row, "Potential Gain", str.tostring(potentialGain, "#.##"),
+                 color.new(color.green, tableOpacity), tableBg, color.white, txtNormal)
+
+    row := f_row(rrTable, row, "RR Ratio", str.tostring(rrRatio, "#.##"),
+                 color.new(color.blue, tableOpacity), tableBg, color.white, txtNormal)
+
+    // ─── SELL RESULT ───
+    row := f_row(rrTable, row, "Sell PnL",
+                 na(sellPnL) ? "—" : str.tostring(sellPnL, "#,###.##"),
+                 tableBg, tableBg, txtNormal, txtNormal)
+// ─── BID / TICK SIMULATION (MARKET-AWARE) ───
+    if not compactMode 
+        row := f_row(rrTable,row,bidLabel,str.tostring(bidMoves),tableBg,tableBg,txtNormal,txtNormal)
+        row := f_row(rrTable,row,pnlBidLabel,str.tostring(bidPnL, "#,###.##"),bidPnL >= 0? color.new(color.green, tableOpacity): color.new(color.red, tableOpacity),tableBg,color.white,txtNormal)
+// ─── PRICE MOVE SIMULATION (MARKET-AWARE) ───
+    if not compactMode 
+        row := f_row(
+        rrTable,
+        row,
+        moveLabel,
+        str.tostring(bidMoves),
+        tableBg,
+        tableBg,
+        txtNormal,
+        txtNormal
+    )
+
+    row := f_row(
+        rrTable,
+        row,
+        pnlMoveLabel,
+        str.tostring(bidPnL, "#,###.##"),
+        bidPnL >= 0
+            ? color.new(color.green, tableOpacity)
+            : color.new(color.red, tableOpacity),
+        tableBg,
+        color.white,
+        txtNormal
+    )
+
+
+// =====================================================
+// 🎛️ TRADE LEVEL VISIBILITY CONTROL
+// =====================================================
+showTradeLevels = input.bool(
+    true,
+    "Show Entry / Stop / Target",
+    tooltip = "Toggle Entry, Stop Loss, and Target lines ON or OFF together"
+)
+
+// =====================================================
+// 🎯 OPTIONAL VISUALS
+// =====================================================
+plot(
+    enableZZCalculator and showTradeLevels ? entryPrice : na,
+    "Entry",
+    color = color.blue,
+    force_overlay = true,
+    editable = true
+)
+
+plot(
+    enableZZCalculator and showTradeLevels ? stopPrice : na,
+    "Stop",
+    color = color.red,
+    force_overlay = true,
+    editable = true
+)
+
+plot(
+    enableZZCalculator and showTradeLevels ? targetPrice : na,
+    "Target",
+    color = color.green,
+    force_overlay = true,
+    editable = true
+)
+
+// =====================================================
+// 📘 CALCULATOR NOTES (READ ONLY)
+// =====================================================
+
+calculatorNotes = input.text_area(
+    "ZZ RR Capital & PnL Calculator — HOW TO USE\n\n" +
+
+    "1. MARKET\n" +
+    "BURSA  : Malaysian stocks (1 lot = 100 shares)\n" +
+    "US     : US stocks (shares based)\n" +
+    "FCPO   : Futures (RM25 per tick per contract)\n\n" +
+
+    "2. INPUT MODE\n" +
+    "Capital → Lots : Enter capital, calculator suggests lots\n" +
+    "Lots → Capital : Enter lots, calculator shows capital required\n\n" +
+
+    "3. RISK % PER TRADE\n" +
+    "Controls how much you are willing to lose per trade\n" +
+    "Example: Capital RM10,000 × 1% = RM100 max loss\n\n" +
+
+    "4. RISK AMOUNT\n" +
+    "Calculated automatically from Capital × Risk %\n" +
+    "This is NOT position size\n" +
+    "This is the MAXIMUM LOSS allowed for the trade\n\n" +
+
+    "5. SHARES / CONTRACTS\n" +
+    "BURSA : Shares = Lots × 100\n" +
+    "FCPO  : Contracts = Lots\n\n" +
+
+    "6. COST PER 1 BID\n" +
+    "Shows profit or loss for ONE tick / bid movement\n\n" +
+
+    "7. PNL @ BIDS\n" +
+    "Simulated PnL based on bid moves and trade direction\n\n" +
+
+    "8. SELL PRICE (REAL EXIT)\n" +
+    "Enter your planned exit price\n" +
+    "Calculator shows exact profit or loss in RM\n" +
+    "Uses real shares / contracts\n" +
+    "Independent from Bid Moves simulation\n\n" +
+
+    "IMPORTANT\n" +
+    "This calculator is for planning and risk control only\n" +
+    "It is NOT a buy or sell signal\n",
+
+    title   = "Calculator Guide (Read Only)",
+    group   = "📘 Calculator Notes",
+    tooltip = "Read-only explanation of calculator logic"
+)
+
+
+/// =====================================================
+// RRTABLE 🎨 THEME SYSTEM (VISUAL ONLY — SAFE)
+// =====================================================
+groupTheme = "🎨 Theme"
+
+themeMode = input.string(
+     "Dark",
+     "RRTable Theme Mode",
+     options = ["Dark", "Light"],
+     group = groupTheme
+)
+
+isDark = themeMode == "Dark"
+
+// ---- Base colors
+colBg        = isDark ? color.rgb(15,15,15)   : color.rgb(245,245,245)
+colBorder    = isDark ? color.rgb(60,60,60)   : color.rgb(180,180,180)
+colText      = isDark ? color.new(color.white,70) : color.rgb(53, 51, 51)
+colMutedText = isDark ? color.rgb(170,170,170): color.rgb(80,80,80)
+
+// ---- Trade colors
+colEntry = isDark ? color.rgb(6, 121, 92)   : color.rgb(0,90,200)
+colSL    = isDark ? color.red    : color.rgb(180,0,0)
+colTP    = isDark ? color.green : color.rgb(0,140,0)
+
+// ---- Dashboard highlights
+colPos = isDark ? color.new(color.green, 60) : color.new(color.green, 40)
+colNeg = isDark ? color.new(color.red,   60) : color.new(color.red,   40)
+// =====================================================
+// 🧩 UTC / DTC COMPACT TEXT HELPER
+// =====================================================
+f_compactState(state) =>str.contains(state, "▲") ? "▲" : str.contains(state, "▼") ? "▼" : str.contains(state, "→") ? "→" : "—"
+
+// =====================================================
+// 🎨 UTC / DTC SCORE COLOR HELPER
+// =====================================================
+f_scoreBg(score) =>score >= 70 ? colPos :score >= 40 ? color.new(color.yellow, 70) :colNeg
+
+// =====================================================
+// 🏷️ LABEL SIZE CONTROL
+// =====================================================
+groupLabelSize = "🏷️ Label Size"
+
+labelSizeInput = input.string(
+    "Small",
+    "Label Size",
+    options = ["Tiny", "Small", "Normal", "Large"],
+    group = groupLabelSize
+)
+// =====================================================
+// 🏷️ LABEL SIZE (SYNC WITH TABLE TEXT SIZE)
+// =====================================================
+labelSize =
+     labelSizeInput == "Tiny"   ? size.tiny :
+     labelSizeInput == "Small"  ? size.small :
+     labelSizeInput == "Large"  ? size.large :
+                                  size.normal
+
+// =====================================================
+// 📐 VISUAL OFFSET (LABELS & LINES)
+// =====================================================
+groupOffset = "📐 Visual Offset"
+
+offsetBars = input.int(
+    2,
+    "Detach Labels / Lines (Bars)",
+    minval = 1,
+    maxval = 10,
+    group = groupOffset
+)
+
+// =====================================================
+// 🎨 LABEL COLOR CONTROLS
+// =====================================================
+groupLabelStyle = "🎨 Label Style"
+
+labelTextColor = input.color(
+    color.white,
+    "Label Text Color",
+    group = groupLabelStyle
+)
+
+labelBgColor = input.color(
+    color.rgb(0, 150, 136),
+    "Label Background Color",
+    group = groupLabelStyle
+)
+
+labelBgAlpha = input.int(
+    0,
+    "Label Background Transparency (0–100)",
+    minval = 0,
+    maxval = 100,
+    group = groupLabelStyle
+)
+
+labelBgFinal = color.new(labelBgColor, labelBgAlpha)
+
+// =====================================================
+// 🎨 TABLE STYLE CONTROLS
+// =====================================================
+groupStyle = "🎛️ Table Style"
+
+// --- Header controls
+hdrTextColor = input.color(color.white, "Header Text Color", group=groupStyle)
+hdrBgColor   = input.color(color.rgb(40,40,40), "Header Background", group=groupStyle)
+hdrBgAlpha   = input.int(0, "Header Transparency (0–100)", minval=0, maxval=100, group=groupStyle)
+
+hdrTextAlpha = input.int(0,"Header Text Transparency (0–100)",minval = 0,maxval = 100,group = groupStyle)
+
+// --- Cell controls
+cellTextColor = input.color(color.white, "Cell Text Color", group=groupStyle)
+cellBgColor   = input.color(color.rgb(20,20,20), "Cell Background", group=groupStyle)
+cellBgAlpha   = input.int(70, "Cell Transparency (0–100)", minval=0, maxval=100, group=groupStyle)
+
+rrTxt = cellTextColor
+
+utcTextOpacity = input.int(
+    40,
+    "UTC / DTC Text Transparency (0–100)",
+    minval = 0,
+    maxval = 100,
+    group = groupStyle
+)
+
+// --- Border
+borderColor  = input.color(color.rgb(80,80,80), "Table Border Color", group=groupStyle)
+// Apply transparency
+hdrBgFinal  = color.new(hdrBgColor, hdrBgAlpha)
+cellBgFinal = color.new(cellBgColor, cellBgAlpha)
+stylePreset = input.string(
+    "Custom",
+    "Style Preset",
+    options = ["Custom", "Dark Clean", "Light Clean", "High Contrast"],
+    group = groupStyle
+)
+
+if stylePreset == "Dark Clean"
+    hdrBgFinal  := color.new(color.rgb(30,30,30), 0)
+    cellBgFinal := color.new(color.rgb(15,15,15), 70)
+   
+    
+
+if stylePreset == "Light Clean"
+    hdrBgFinal  := color.new(color.rgb(240,240,240), 0)
+    cellBgFinal := color.new(color.rgb(255,255,255), 60)
+    
+    
+
+// Simulate text transparency by blending with header background
+hdrTextFinal = color.from_gradient(hdrTextAlpha,0, 100,hdrTextColor,hdrBgColor)
+text_color = hdrTextFinal
+
+// =====================================================
+// 🎨 SCORE CHANGE COLOR (DELTA-BASED)
+// =====================================================
+f_scoreDeltaBg(curr, prev) => na(prev) ? cellBgFinal : curr > prev ? colPos : curr < prev ? colNeg : cellBgFinal
+
+
+// =====================================================
+// 🎯 CHART TRADE PLAN (VISUAL ONLY)
+// =====================================================
+showTradePlan = input.bool(true, "Show Entry / TP / SL on Chart")
+autoClearOnExit = input.bool(true, "Auto-remove lines on EXIT")
+// =====================================================
+// 🥇 CHART SYMBOL (ALWAYS ROW #1)
+// =====================================================
+chartSymbolID   = syminfo.tickerid   // for request.security ONLY
+chartSymbolText = syminfo.ticker     // for table display ONLY
+
+
+// =====================================================
+// 🧠 BURSA UNIVERSE — EXTENDED (AUTO SCAN POOL)
+// =====================================================
+
+string[] RR_BURSA_G1 = array.from(
+ "MYX:ISF","MYX:PENSONI","MYX:SAPRES","MYX:ROHAS","MYX:CAPITALA",
+ "MYX:RKI","MYX:GUOCO","MYX:PWRWELL","MYX:HKB","MYX:KJTS",
+ "MYX:VSTECS","MYX:REACHTEN","MYX:LACMED","MYX:ELRIDGE","MYX:LBALUM",
+ "MYX:ARKA","MYX:WASCO","MYX:DPIH","MYX:FPGROUP","MYX:KERJAYA"
+)
+
+
+string[] RR_BURSA_G2 = array.from(
+ "MYX:WELLCHIP","MYX:RVIEW","MYX:JSB","MYX:KEINHIN","MYX:SCICOM",
+ "MYX:FAVCO","MYX:IOIPG","MYX:IMASPRO","MYX:HUAYANG","MYX:VIS",
+ "MYX:EFORCE","MYX:BAUTO","MYX:OSK","MYX:POHKONG","MYX:DUFU",
+ "MYX:AYS","MYX:SHANG","MYX:YXPM","MYX:SEEHUP","MYX:TOMYPAK"
+)
+
+string[] RR_BURSA_G3 = array.from(
+ "MYX:HIL","MYX:SORENTO","MYX:CSCSTEL","MYX:AXREIT","MYX:LSH",
+ "MYX:MCLEAN","MYX:RGB","MYX:ELSOFT","MYX:BNASTRA","MYX:SAPIND",
+ "MYX:KENERGY","MYX:NORTHERN","MYX:HEXTECH","MYX:GENP","MYX:CYL",
+ "MYX:PLS","MYX:SWKPLNT","MYX:UWC","MYX:TOMEI","MYX:OCK"
+)
+
+
+string[] RR_BURSA_G4 = array.from(
+ "MYX:JPG","MYX:HSSEB","MYX:LUXCHEM","MYX:MUDA","MYX:CVIEW",
+ "MYX:MI","MYX:INFOTEC","MYX:GESHEN","MYX:SUNREIT","MYX:AQUAWALK",
+ "MYX:QES","MYX:UNIQUE","MYX:YEWLEE","MYX:JHM","MYX:PERSTIM",
+ "MYX:IGBB","MYX:MEGAFB","MYX:IGBREIT","MYX:IAB","MYX:TMCLIFE"
+)
+
+
+string[] RR_BURSA_G5 = array.from(
+ "MYX:SOP","MYX:KLUANG","MYX:MENTIGA","MYX:ITMAX","MYX:RAMSSOL",
+ "MYX:PANSAR","MYX:YTL","MYX:ELKDESA","MYX:WINSTAR","MYX:SDCG",
+ "MYX:TAANN","MYX:ANNJOO","MYX:P&O","MYX:TGUAN","MYX:AUMAS",
+ "MYX:MKHOP","MYX:SKPRES","MYX:AEON","MYX:PANTECH","MYX:WCEHB"
+)
+
+string[] RR_BURSA_G6 = array.from(
+ "MYX:CMSB","MYX:BMGREEN","MYX:TSA","MYX:NHFATT","MYX:ABLEGLOB",
+ "MYX:KOBAY","MYX:DAYANG","MYX:PARAGON","MYX:POHUAT","MYX:PPJACK",
+ "MYX:PLINTAS","MYX:NSOP","MYX:SPSETIA","MYX:WPRTS","MYX:PADINI",
+ "MYX:SCGBHD","MYX:NESTLE","MYX:MANULFE","MYX:KFIMA","MYX:UCHITEC"
+)
+
+
+string[] RR_BURSA_G7 = array.from(
+ "MYX:HUMEIND","MYX:UTDPLT","MYX:DKSH","MYX:ENRA","MYX:MERCURY",
+ "MYX:CHUAN","MYX:PTARAS","MYX:SHH","MYX:ACO","MYX:HAILY",
+ "MYX:FLBHD","MYX:TASCO","MYX:SUNZEN","MYX:MNHLDG","MYX:CBHB",
+ "MYX:RESINTC","MYX:NE","MYX:MENANG","MYX:GKENT","MYX:KRETAM"
+)
+
+
+string[] RR_BURSA_G8 = array.from(
+ "MYX:AYER","MYX:BONIA","MYX:AJIYA","MYX:WELLS","MYX:HIGHTEC",
+ "MYX:SAM","MYX:FRONTKN","MYX:INNO","MYX:TIMECOM","MYX:SDS",
+ "MYX:IBRACO","MYX:SIMEPROP","MYX:ANCOMNY","MYX:WONG","MYX:SSF",
+ "MYX:JTIASA","MYX:JAGCPTL","MYX:MASTEEL","MYX:HARNLEN","MYX:TANCO"
+)
+
+
+string[] RR_BURSA_G9 = array.from(
+ "MYX:KARYON","MYX:KTI","MYX:BJLAND","MYX:HEXCAP","MYX:MGRC",
+ "MYX:SDG","MYX:EDGENTA","MYX:SRIDGE","MYX:SUNLOGY","MYX:IWCITY",
+ "MYX:AZRB","MYX:ASTINO","MYX:NTPM","MYX:AGX","MYX:MAGNI",
+ "MYX:NOTION","MYX:ECOWLD","MYX:MUIPROP","MYX:INTA","MYX:ASIAPLY"
+)
+
+
+string[] RR_BURSA_G10 = array.from(
+ "MYX:LIIHEN","MYX:ONEGLOVE","MYX:OHM","MYX:TECHBND","MYX:SERNKOU",
+ "MYX:NGGB","MYX:FIHB","MYX:FIMACOR","MYX:HEXRTL","MYX:ASIAFLE",
+ "MYX:BJFOOD","MYX:MASTER","MYX:SYSTECH","MYX:KMLOONG","MYX:CHINHIN",
+ "MYX:UOADEV","MYX:RANHILL","MYX:ECOMATE","MYX:MHC","MYX:SCIPACK"
+)
+
+
+string[] RR_BURSA_G11 = array.from(
+    "MYX:ISF","MYX:PENSONI","MYX:SAPRES","MYX:ROHAS","MYX:CAPITALA",
+    "MYX:RKI","MYX:GUOCO","MYX:PWRWELL","MYX:HKB","MYX:KJTS",
+    "MYX:VSTECS","MYX:REACHTEN","MYX:LACMED","MYX:ELRIDGE","MYX:LBALUM",
+    "MYX:ARKA","MYX:WASCO","MYX:DPIH","MYX:FPGROUP","MYX:KERJAYA"
+)
+
+
+string[] RR_BURSA_G12 = array.from(
+    "MYX:WELLCHIP","MYX:RVIEW","MYX:JSB","MYX:KEINHIN","MYX:SCICOM",
+    "MYX:FAVCO","MYX:IOIPG","MYX:IMASPRO","MYX:HUAYANG","MYX:VIS",
+    "MYX:EFORCE","MYX:BAUTO","MYX:OSK","MYX:POHKONG","MYX:DUFU",
+    "MYX:AYS","MYX:SHANG","MYX:YXPM","MYX:SEEHUP","MYX:TOMYPAK"
+)
+
+
+string[] RR_BURSA_G13 = array.from(
+    "MYX:HIL","MYX:SORENTO","MYX:CSCSTEL","MYX:AXREIT","MYX:LSH",
+    "MYX:MCLEAN","MYX:RGB","MYX:ELSOFT","MYX:BNASTRA","MYX:SAPIND",
+    "MYX:KENERGY","MYX:NORTHERN","MYX:HEXTECH","MYX:GENP","MYX:CYL",
+    "MYX:PLS","MYX:SWKPLNT","MYX:UWC","MYX:TOMEI","MYX:OCK"
+)
+
+string[] RR_BURSA_G14 = array.from(
+    "MYX:JPG","MYX:HSSEB","MYX:LUXCHEM","MYX:MUDA","MYX:CVIEW",
+    "MYX:MI","MYX:INFOTEC","MYX:GESHEN","MYX:SUNREIT","MYX:AQUAWALK",
+    "MYX:QES","MYX:UNIQUE","MYX:YEWLEE","MYX:JHM","MYX:PERSTIM",
+    "MYX:IGBB","MYX:MEGAFB","MYX:IGBREIT","MYX:IAB","MYX:TMCLIFE"
+)
+
+
+string[] RR_BURSA_G15 = array.from(
+    "MYX:SOP","MYX:KLUANG","MYX:MENTIGA","MYX:ITMAX","MYX:RAMSSOL",
+    "MYX:PANSAR","MYX:YTL","MYX:ELKDESA","MYX:WINSTAR","MYX:SDCG",
+    "MYX:TAANN","MYX:ANNJOO","MYX:P&O","MYX:TGUAN","MYX:AUMAS",
+    "MYX:MKHOP","MYX:SKPRES","MYX:AEON","MYX:PANTECH","MYX:WCEHB"
+)
+
+
+string[] RR_BURSA_G16 = array.from(
+    "MYX:CMSB","MYX:BMGREEN","MYX:TSA","MYX:NHFATT","MYX:ABLEGLOB",
+    "MYX:KOBAY","MYX:DAYANG","MYX:PARAGON","MYX:POHUAT","MYX:PPJACK",
+    "MYX:PLINTAS","MYX:NSOP","MYX:SPSETIA","MYX:WPRTS","MYX:PADINI",
+    "MYX:SCGBHD","MYX:NESTLE","MYX:MANULFE","MYX:KFIMA","MYX:UCHITEC"
+)
+
+
+string[] RR_BURSA_G17 = array.from(
+    "MYX:HUMEIND","MYX:UTDPLT","MYX:DKSH","MYX:ENRA","MYX:MERCURY",
+    "MYX:CHUAN","MYX:PTARAS","MYX:SHH","MYX:ACO","MYX:HAILY",
+    "MYX:FLBHD","MYX:TASCO","MYX:SUNZEN","MYX:MNHLDG","MYX:CBHB",
+    "MYX:RESINTC","MYX:NE","MYX:MENANG","MYX:GKENT","MYX:KRETAM"
+)
+
+
+string[] RR_BURSA_G18 = array.from(
+    "MYX:AYER","MYX:BONIA","MYX:AJIYA","MYX:WELLS","MYX:HIGHTEC",
+    "MYX:SAM","MYX:FRONTKN","MYX:INNO","MYX:TIMECOM","MYX:SDS",
+    "MYX:IBRACO","MYX:SIMEPROP","MYX:ANCOMNY","MYX:WONG","MYX:SSF",
+    "MYX:JTIASA","MYX:JAGCPTL","MYX:MASTEEL","MYX:HARNLEN","MYX:TANCO"
+)
+
+
+string[] RR_BURSA_G19 = array.from(
+    "MYX:KARYON","MYX:KTI","MYX:BJLAND","MYX:HEXCAP","MYX:MGRC",
+    "MYX:SDG","MYX:EDGENTA","MYX:SRIDGE","MYX:SUNLOGY","MYX:IWCITY",
+    "MYX:AZRB","MYX:ASTINO","MYX:NTPM","MYX:AGX","MYX:MAGNI",
+    "MYX:NOTION","MYX:ECOWLD","MYX:MUIPROP","MYX:INTA","MYX:ASIAPLY"
+)
+
+
+string[] RR_BURSA_G20 = array.from(
+    "MYX:LIIHEN","MYX:ONEGLOVE","MYX:OHM","MYX:TECHBND","MYX:SERNKOU",
+    "MYX:NGGB","MYX:FIHB","MYX:FIMACOR","MYX:HEXRTL","MYX:ASIAFLE",
+    "MYX:BJFOOD","MYX:MASTER","MYX:SYSTECH","MYX:KMLOONG","MYX:CHINHIN",
+    "MYX:UOADEV","MYX:RANHILL","MYX:ECOMATE","MYX:MHC","MYX:SCIPACK"
+)
+
+
+
+
+// =====================================================
+// 🇺🇸 US UNIVERSE — RRTable (20 stocks per group)
+// =====================================================
+
+string[] RR_US_G1 = array.from(
+"NYSE:JKS","NASDAQ:APLD","NASDAQ:GLSI","NYSE:DQ","NASDAQ:BLBX",
+"NASDAQ:CORT","NYSE:AG","NYSE:B","NYSE:NOW","NYSE:CF",
+"NASDAQ:HFBL","NYSE:AS","NASDAQ:MSFT","NYSE:AU","NYSE:BP",
+"NASDAQ:NFLX","NYSE:E","NYSE:PKG","NASDAQ:ASND","NYSE:SPOT"
+)
+
+
+string[] RR_US_G2 = array.from(
+"NASDAQ:JOYY","NASDAQ:AMD","NYSE:TSM","NASDAQ:ISSC","NYSE:UGP",
+"NASDAQ:RGC","NASDAQ:AMZN","NASDAQ:NICE","NYSE:PRG","NASDAQ:SBUX",
+"NASDAQ:LOGI","NASDAQ:META","NASDAQ:DLTR","NYSE:DG","NASDAQ:WMG",
+"NASDAQ:NVDA","NASDAQ:FANG","NYSE:GOLF","NASDAQ:STLD","NASDAQ:MNST"
+)
+
+
+string[] RR_US_G3 = array.from(
+"NYSE:BSX","NYSE:NAT","NASDAQ:AMAT","NYSE:MCD","NASDAQ:FSLR",
+"NYSE:CL","NYSE:RL","NYSE:HCA","NASDAQ:AXON","NYSE:BST",
+"NYSE:TRNO","NYSE:DD","NASDAQ:WBD","NASDAQ:ZUMZ","NYSE:HLT",
+"NASDAQ:HOOD","NYSE:AER","NASDAQ:BLKB","NASDAQ:CAMT","NYSE:SNX"
+)
+
+
+string[] RR_US_G4 = array.from(
+"NASDAQ:MU","NASDAQ:PEGA","NASDAQ:IBKR","NASDAQ:APP","NASDAQ:ADBE",
+"NASDAQ:ANAB","NYSE:DKL","NYSE:TPR","NYSE:ZETA","NYSE:CPA",
+"NASDAQ:CSCO","NYSE:ORA","NASDAQ:PDD","NYSE:BA","NYSE:RACE",
+"NASDAQ:ENSG","NYSE:DLR","NYSE:VIPS","NYSE:DAY","NASDAQ:COKE"
+)
+
+
+string[] RR_US_G5 = array.from(
+"NYSE:GIS","NASDAQ:PEP","NYSE:NET","NASDAQ:BL","NYSE:HCC",
+"NYSE:TRGP","NASDAQ:MGYR","OTC:CRZY","NYSE:PWR","NASDAQ:CTRN",
+"NYSE:SUN","NASDAQ:NATH","NYSE:CRM","NYSE:AL","NYSE:STAG",
+"NYSE:V","NASDAQ:TSLA","NYSE:TDG","NYSE:AM","NASDAQ:EXAS"
+)
+
+
+string[] RR_US_G6 = array.from(
+"NASDAQ:AAPL","NASDAQ:STX","NASDAQ:CSGS","NASDAQ:EA","NASDAQ:RNA",
+"NASDAQ:EXLS","NASDAQ:ITRN","NASDAQ:IROQ","NASDAQ:FUTU","NYSE:MSCI",
+"NASDAQ:CRWD","NASDAQ:EBAY","NYSE:UBER","NASDAQ:TXRH","NYSE:MMS",
+"NYSE:W","NASDAQ:ISRG","NYSE:PFGC","NYSE:YUM","NASDAQ:VRSN"
+)
+
+
+string[] RR_US_G7 = array.from(
+"NASDAQ:RRR","NASDAQ:ASO","NASDAQ:BHF","NYSE:GE","NASDAQ:MRCY",
+"NYSE:TPB","NYSE:EPD","NYSE:BSM","NASDAQ:FIVE","NASDAQ:CTSH",
+"NASDAQ:EXEL","NYSE:BE","NYSE:BH","NASDAQ:NTRA","NYSE:CBRE",
+"NASDAQ:AXSM","NYSE:BBW","NASDAQ:SSNC","NASDAQ:LQDT","NYSE:JLL"
+)
+
+
+string[] RR_US_G8 = array.from(
+"NYSE:NKE","NYSE:SITE","NASDAQ:CELC","NASDAQ:UTHR","NYSE:BURL",
+"NASDAQ:CWST","NYSE:GD","NASDAQ:CHRW","NYSE:OKE","NYSE:VVV",
+"NYSE:MPLX","NASDAQ:GOOG","NASDAQ:PI","NYSE:BRK.A","NYSE:DKS",
+"NASDAQ:NDAQ","NYSE:FN","NASDAQ:MELI","NYSE:VOYA","NASDAQ:ADP"
+)
+
+
+string[] RR_US_G9 = array.from(
+"NASDAQ:LAMR","NYSE:USFD","NYSE:DFH","NASDAQ:GOOGL","NASDAQ:BVFL",
+"NYSE:AXS","OTC:GOVB","NASDAQ:Z","NYSE:CNM","NYSE:CWEN",
+"NYSE:FIX","NASDAQ:BSY","NASDAQ:ROKU","NASDAQ:ADI","NASDAQ:RVMD",
+"NYSE:PRU","NASDAQ:BKR","NYSE:H","NASDAQ:MAT","NASDAQ:BKNG"
+)
+
+
+string[] RR_US_G10 = array.from(
+"NASDAQ:CYBR","NYSE:WH","NYSE:BRK.B","NYSE:LDOS","NYSE:NRG",
+"NYSE:ANF","NASDAQ:MPWR","NYSE:WCC","NASDAQ:WYNN","NYSE:ALSN",
+"NYSE:OMF","NASDAQ:AVAV","NYSE:MET","NASDAQ:CRDO","NASDAQ:MDB",
+"NYSE:AA","NASDAQ:UCTT","NYSE:BC","NYSE:DELL","NYSE:ANET"
+)
+
+
+string[] RR_US_G11 = array.from(
+"NYSE:MA","NYSE:ENS","NYSE:EXR","NYSE:TMHC","NASDAQ:HSIC",
+"NYSE:AIZ","NASDAQ:CG","NYSE:WMS","NASDAQ:ON","NASDAQ:SUPN",
+"NYSE:HASI","NASDAQ:HUBG","NASDAQ:LMAT","NYSE:ATKR","NYSE:GM",
+"NASDAQ:NXPI","NASDAQ:MIRM","NASDAQ:LULU","NYSE:SYF","NYSE:AB"
+)
+
+
+string[] RR_US_G12 = array.from(
+"NYSE:DIS","NYSE:CRL","NASDAQ:FAST","NASDAQ:PTGX","NASDAQ:ARLP",
+"NASDAQ:ALGT","NYSE:CPAY","NASDAQ:SIMO","NYSE:WAT","NASDAQ:XRAY",
+"NYSE:SGI","NASDAQ:VSAT","NASDAQ:GH","NYSE:TRU","NASDAQ:LAUR",
+"NYSE:MTD","NASDAQ:MTSI","NASDAQ:ESTA","NYSE:FHI","NASDAQ:SMCI"
+)
+
+
+string[] RR_US_G13 = array.from(
+"NYSE:PSTG","NYSE:IBP","NYSE:BOOT","NYSE:RYI","NYSE:PAG",
+"NASDAQ:NBIS","NASDAQ:ALGM","NASDAQ:ACAD","NASDAQ:SYNA","NASDAQ:VERA",
+"NYSE:CFG","NASDAQ:BBIO","NASDAQ:TTMI","NYSE:A","NASDAQ:ARM",
+"NASDAQ:KRYS","NASDAQ:MKSI","NYSE:EVR","NASDAQ:KRUS","NASDAQ:AMBA"
+)
+
+
+string[] RR_US_G14 = array.from(
+"NYSE:NIO","NYSE:REVG","NYSE:HGV","NASDAQ:ROAD","NYSE:BX",
+"NASDAQ:PDFS","NYSE:YETI","NYSE:AMG","NASDAQ:MEDP","NASDAQ:EXPE",
+"NASDAQ:STEP","NASDAQ:VIAV","NYSE:BFH","NASDAQ:CRNX","NASDAQ:ENTG",
+"NASDAQ:ALNY","NYSE:LAZ","NASDAQ:WLDN","NYSE:WHD","NASDAQ:COLL"
+)
+
+string[] RR_US_G15 = array.from(
+"NASDAQ:NWPX","NASDAQ:VCYT","NYSE:ARES","NASDAQ:ACMR","NASDAQ:CPRX",
+"NYSE:ETSY","NYSE:ASB","NYSE:GS","NASDAQ:TARS","NYSE:RM",
+"NASDAQ:SERV","NYSE:URI","NASDAQ:IDYA","NASDAQ:KYMR","NASDAQ:SLAB",
+"NASDAQ:ACLS","NASDAQ:FIBK","NYSE:MC","NASDAQ:LPLA","NYSE:WAL"
+)
+
+
+string[] RR_US_G16 = array.from(
+"NASDAQ:OSIS","NASDAQ:TERN","NYSE:CCS","NYSE:AX","NYSE:ABG",
+"NASDAQ:AEIS","NASDAQ:TWST","NASDAQ:NUVL","NASDAQ:RYTM","NASDAQ:AMKR",
+"NASDAQ:SITM","NASDAQ:VKTX","NYSE:SEI","NASDAQ:MRNA","NASDAQ:PAHC",
+"NASDAQ:AAOI","NASDAQ:OSS","NASDAQ:SRRK","NASDAQ:RMBS","NASDAQ:KOD"
+)
+
+
+string[] RR_US_G17 = array.from(
+"NASDAQ:AEHR","NASDAQ:FORM","NASDAQ:INTC","NASDAQ:LOPE","NASDAQ:BLBD",
+"NASDAQ:LWAY","NASDAQ:HURN","NASDAQ:FLGT","NYSE:EIG","NASDAQ:EFSI",
+"NYSE:PLOW","NYSE:AGO","NYSE:THR","NASDAQ:CLMB","NASDAQ:KELYA",
+"NASDAQ:BJRI","NASDAQ:VCTR","NASDAQ:PRDO","NASDAQ:ETON","NASDAQ:ESCA"
+)
+
+
+string[] RR_US_G18 = array.from(
+"NASDAQ:NTCT","NASDAQ:TSBK","NYSE:OPLN","NASDAQ:ECPG","NASDAQ:MRTN",
+"NASDAQ:BWMN","NASDAQ:NECB","NASDAQ:NMIH","NYSE:PRLB","NYSE:GPI",
+"NASDAQ:NXST","NYSE:CALX","NASDAQ:IRMD","NASDAQ:TCMD","NASDAQ:BCML",
+"NASDAQ:CRAI","NYSE:PLNT","NASDAQ:RUSHA","NASDAQ:FISI","NASDAQ:BWFG"
+)
+
+
+string[] RR_US_G19 = array.from(
+"NASDAQ:PCB","NASDAQ:SPFI","NASDAQ:FSBC","NASDAQ:MCFT","NASDAQ:HBCP",
+"NASDAQ:ZD","NASDAQ:RBCAA","NASDAQ:ALRS","NASDAQ:TCBI","NYSE:MCB",
+"NYSE:FBK","NASDAQ:SFST","NASDAQ:GEOS","NYSE:CALX","NASDAQ:ROAD",
+"NYSE:AGO","NASDAQ:PDFS","NASDAQ:VSAT","NASDAQ:SUPN","NASDAQ:BHF"
+)
+
+string[] RR_US_G20 = array.from(
+"NYSE:ENS","NYSE:EXR","NYSE:AIZ","NYSE:ATKR","NYSE:ALSN",
+"NYSE:LDOS","NYSE:NRG","NYSE:AMG","NYSE:SEI","NYSE:BFH",
+"NYSE:MET","NYSE:PRU","NYSE:GS","NYSE:V","NYSE:MA",
+"NYSE:TDG","NYSE:DIS","NYSE:NKE","NYSE:YUM","NYSE:MCD"
+)
+
+// =====================================================
+// 🧠 MANUAL RR UNIVERSE (FROM USER INPUTS)
+// =====================================================
+string[] RR_MANUAL_UNIVERSE = array.from(
+    manualSym1, manualSym2, manualSym3, manualSym4, manualSym5,
+    manualSym6, manualSym7, manualSym8, manualSym9, manualSym10,
+    manualSym11, manualSym12, manualSym13, manualSym14, manualSym15
+)
+
+
+// =====================================================
+// 🧭 PHASE 3 — ACTIVE RRTable UNIVERSE (UI SWITCHED)
+// =====================================================
+
+string[] RR_ACTIVE_UNIVERSE = array.new_string()
+
+
+
+
+// =====================================================
+// 🧭 FINAL RR UNIVERSE (AUTO / MANUAL SWITCH)
+// =====================================================
+
+if rrMarket == "BURSA"
+    RR_ACTIVE_UNIVERSE := (
+        rrGroupActive == "Group 1"  ? RR_BURSA_G1  :
+        rrGroupActive == "Group 2"  ? RR_BURSA_G2  :
+        rrGroupActive == "Group 3"  ? RR_BURSA_G3  :
+        rrGroupActive == "Group 4"  ? RR_BURSA_G4  :
+        rrGroupActive == "Group 5"  ? RR_BURSA_G5  :
+        rrGroupActive == "Group 6"  ? RR_BURSA_G6  :
+        rrGroupActive == "Group 7"  ? RR_BURSA_G7  :
+        rrGroupActive == "Group 8"  ? RR_BURSA_G8  :
+        rrGroupActive == "Group 9"  ? RR_BURSA_G9  :
+        rrGroupActive == "Group 10" ? RR_BURSA_G10 :
+        rrGroupActive == "Group 11" ? RR_BURSA_G11 :
+        rrGroupActive == "Group 12" ? RR_BURSA_G12 :
+        rrGroupActive == "Group 13" ? RR_BURSA_G13 :
+        rrGroupActive == "Group 14" ? RR_BURSA_G14 :
+        rrGroupActive == "Group 15" ? RR_BURSA_G15 :
+        rrGroupActive == "Group 16" ? RR_BURSA_G16 :
+        rrGroupActive == "Group 17" ? RR_BURSA_G17 :
+        rrGroupActive == "Group 18" ? RR_BURSA_G18 :
+        rrGroupActive == "Group 19" ? RR_BURSA_G19 :
+                                      RR_BURSA_G20
+    )
+
+else if rrMarket == "US"
+    RR_ACTIVE_UNIVERSE := (
+        rrGroupActive == "Group 1"  ? RR_US_G1  :
+        rrGroupActive == "Group 2"  ? RR_US_G2  :
+        rrGroupActive == "Group 3"  ? RR_US_G3  :
+        rrGroupActive == "Group 4"  ? RR_US_G4  :
+        rrGroupActive == "Group 5"  ? RR_US_G5  :
+        rrGroupActive == "Group 6"  ? RR_US_G6  :
+        rrGroupActive == "Group 7"  ? RR_US_G7  :
+        rrGroupActive == "Group 8"  ? RR_US_G8  :
+        rrGroupActive == "Group 9"  ? RR_US_G9  :
+        rrGroupActive == "Group 10" ? RR_US_G10 :
+        rrGroupActive == "Group 11" ? RR_US_G11 :
+        rrGroupActive == "Group 12" ? RR_US_G12 :
+        rrGroupActive == "Group 13" ? RR_US_G13 :
+        rrGroupActive == "Group 14" ? RR_US_G14 :
+        rrGroupActive == "Group 15" ? RR_US_G15 :
+        rrGroupActive == "Group 16" ? RR_US_G16 :
+        rrGroupActive == "Group 17" ? RR_US_G17 :
+        rrGroupActive == "Group 18" ? RR_US_G18 :
+        rrGroupActive == "Group 19" ? RR_US_G19 :
+                                      RR_US_G20
+    )
+
+
+
+string[] RR_FINAL_UNIVERSE =
+     rrSymbolMode == "Manual"
+     ? RR_MANUAL_UNIVERSE
+     : RR_ACTIVE_UNIVERSE
+
+
+
+
+// =====================================================
+// 🧠 PHASE 1 — RRTable CACHE ARRAYS (ONE SECURITY CALL)
+// =====================================================
+float[] rr_p    = array.new_float()
+float[] rr_sp   = array.new_float()
+float[] rr_tp1  = array.new_float()
+float[] rr_tp2  = array.new_float()
+float[] rr_tp3  = array.new_float()
+float[] rr_s    = array.new_float()
+string[] rr_sym = array.new_string()
+
+float[] uScore = array.new_float()
+string[] uSym  = array.new_string()
+
+string[] rr_maruGrade = array.new_string()
+float[]  rr_maruPct   = array.new_float()
+
+string[] rr_intraGrade = array.new_string()
+float[]  rr_intraPct   = array.new_float()
+float[] rr_utcScore = array.new_float()
+string[] rr_utcState = array.new_string()
+
+float[] rr_dtcScore = array.new_float()
+string[] rr_dtcState = array.new_string()
+
+// =====================================================
+// 🔧 USER INPUTS
+// =====================================================
+accountSize = input.float(100000, "Account Size (RM)")
+riskPercent = input.float(1.0, "Risk % per Trade", step=0.1)
+atrLen      = input.int(14, "ATR Length")
+atrMult     = input.float(2.0, "ATR Multiplier")
+MAX_BULL_STOCKS = 19
+
+tf = timeframe.period
+
+// =====================================================
+// 🟦 DAILY MARUBOZU SCORE (DAILY TF – TABLE USE)
+// =====================================================
+[dO_D, dH_D, dL_D, dC_D] = request.security(
+    syminfo.tickerid,
+    "D",
+    [open, high, low, close],
+    barmerge.gaps_off,
+    barmerge.lookahead_off
+)
+
+float dRange = math.max(dH_D - dL_D, syminfo.mintick)
+float dBody  = dC_D - dO_D
+
+float dBodyPct   = dBody / dRange
+float dUpperWick = (dH_D - dC_D) / dRange
+float dLowerWick = (dO_D - dL_D) / dRange
+
+string dailyMaruScore = "NA"
+float  dailyMaruPct   = dBodyPct * 100.0
+
+if dC_D <= dO_D
+    dailyMaruScore := "F"
+else
+    if dBodyPct >= 0.90 and dUpperWick <= 0.03 and dLowerWick <= 0.03
+        dailyMaruScore := "A+"
+    else if dBodyPct >= 0.80
+        dailyMaruScore := "A"
+    else if dBodyPct >= 0.70
+        dailyMaruScore := "B"
+    else if dBodyPct >= 0.60
+        dailyMaruScore := "C"
+    else if dBodyPct >= 0.50
+        dailyMaruScore := "D"
+    else
+        dailyMaruScore := "E"
+
+
+// =====================================================
+// 🧹 TRADE PLAN LINE HOLDERS (CHART ONLY)
+// =====================================================
+var line entryLine = na
+var line stopLine  = na
+var line tp1Line   = na
+var line tp2Line   = na
+var line tp3Line   = na
+// =====================================================
+// 🏷️ ENTRY COPY LABEL HOLDER (CHART ONLY)
+// =====================================================
+var label entryLabel = na
+var label slPctLabel  = na
+var label tp1PctLabel = na
+var label tp2PctLabel = na
+var label tp3PctLabel = na
+
+// =====================================================
+// ⏰ BURSA SESSION
+// =====================================================
+tz = "Asia/Kuala_Lumpur"
+inSession =
+     (hour(time, tz) == 9  and minute(time, tz) >= 30) or
+     (hour(time, tz) > 9  and hour(time, tz) < 12) or
+     (hour(time, tz) == 12 and minute(time, tz) <= 30) or
+     (hour(time, tz) == 14 and minute(time, tz) >= 30) or
+     (hour(time, tz) > 14 and hour(time, tz) < 16)
+// =====================================================
+// 🐂 Major Bull Score — TABLE SAFE (Same TF)
+// =====================================================
+f_majorBullScore() =>
+    // Anchor: first open
+    var float firstOpen = na
+    if na(firstOpen)
+        firstOpen := open
+
+    // All-time range
+    var float allTimeHigh = na
+    var float allTimeLow  = na
+
+    allTimeHigh := na(allTimeHigh) ? high : math.max(allTimeHigh, high)
+    allTimeLow  := na(allTimeLow)  ? low  : math.min(allTimeLow, low)
+
+    float C = close
+    float O = firstOpen
+    float H = allTimeHigh
+    float L = allTimeLow
+
+    float rng = math.max(H - L, syminfo.mintick)
+
+    float bodyStrength = (C - O) / rng
+    float upperRatio   = (H - C) / rng
+    float lowerRatio   = (O - L) / rng
+
+    int score =
+         C <= O ? 0 :
+         bodyStrength >= 0.90 and upperRatio <= 0.05 and lowerRatio <= 0.05 ? 100 :
+         bodyStrength >= 0.80 ? 85 :
+         bodyStrength >= 0.70 ? 70 :
+         bodyStrength >= 0.60 ? 60 :
+         bodyStrength >= 0.50 ? 50 : 30
+
+    score
+
+f_bullGrade(float score) =>
+     score >= 85 ? "A+" :
+     score >= 70 ? "A"  :
+     score >= 60 ? "B"  :
+     score >= 50 ? "C"  :
+     score >= 40 ? "D"  :
+     score >= 30 ? "E"  : "F"
+
+// =====================================================
+// 🟩 INTRADAY TREND (SESSION-BASED, TABLE SAFE)
+// =====================================================
+f_intradayTrend() =>
+    var float sO = na
+    var float sH = na
+    var float sL = na
+    var float sC = na
+
+    inSess = inSession
+    sessStart = inSess and not inSess[1]
+
+    if sessStart
+        sO := open
+        sH := high
+        sL := low
+        sC := close
+    else if inSess
+        sH := math.max(sH, high)
+        sL := math.min(sL, low)
+        sC := close
+
+    rng = math.max(sH - sL, syminfo.mintick)
+    closePos = rng > 0 ? (sC - sL) / rng : na
+    pct = closePos * 100.0
+
+    string grade = sC <= sO ? "F" :closePos >= 0.90 ? "A+" :closePos >= 0.80 ? "A" :closePos >= 0.70 ? "B" :closePos >= 0.60 ? "C" :closePos >= 0.50 ? "D" : "E"
+
+    [grade, pct]
+
+// =====================================================
+// 🧠 CORE SCAN FUNCTION
+// =====================================================
+f_scan() =>
+        // 🟦 DAILY MARUBOZU (PER SYMBOL, DAILY TF)
+    [dO_D, dH_D, dL_D, dC_D] = request.security(
+        syminfo.tickerid,   // ❌ REMOVE daily security from f_scan entirely
+        "D",
+        [open, high, low, close],
+        barmerge.gaps_off,
+        barmerge.lookahead_off
+    )
+
+    float dRange = math.max(dH_D - dL_D, syminfo.mintick)
+    float dBody  = dC_D - dO_D
+    float dBodyPct   = dBody / dRange
+    float dUpperWick = (dH_D - dC_D) / dRange
+    float dLowerWick = (dO_D - dL_D) / dRange
+
+    string maruScore = dC_D <= dO_D ? "F" : dBodyPct >= 0.90 and dUpperWick <= 0.03 and dLowerWick <= 0.03 ? "A+" : dBodyPct >= 0.80 ? "A" : dBodyPct >= 0.70 ? "B" : dBodyPct >= 0.60 ? "C" : dBodyPct >= 0.50 ? "D" : "E"
+
+    float maruPct = dBodyPct * 100
+
+    fast = ta.ema(close, 12)
+    slow = ta.ema(close, 26)
+    macd = fast - slow
+    sig  = ta.ema(macd, 9)
+    hist = macd - sig
+
+    cciMA = ta.sma(close, 20)
+    cci   = (close - cciMA) / (0.015 * ta.dev(close, 20))
+
+    mom = close - close[10]
+    ao  = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+
+    ema50 = ta.ema(close, 50)
+    vwap  = ta.vwap(hlc3)
+    trendOK = close > ema50 and close > vwap
+
+    entry   = ta.crossover(macd, sig) and macd < 0 and hist > 0 and cci > -100 and mom > ao and trendOK
+    reentry = ta.crossover(macd, sig) and macd > 0 and hist > 0 and cci > 50 and mom > ao and ta.rsi(close,14)>50 and trendOK
+    exitSig = ta.crossunder(macd, sig) or cci > 200
+
+    entryPrice = close
+    atr = ta.atr(atrLen)
+    stopDist = atr * atrMult
+    stopPrice = entryPrice - stopDist
+
+    tp1 = entryPrice + stopDist
+    tp2 = entryPrice + stopDist * 2
+    tp3 = entryPrice + stopDist * 3
+
+    riskAmt = accountSize * (riskPercent / 100)
+    posSize = stopDist > 0 ? math.floor(riskAmt / stopDist) : na
+
+    // 🐂 Major Bull Score (same TF)
+    majorBullScore = f_majorBullScore()
+
+    // Combine Major Bull + existing filters (optional tuning)
+    strength = majorBullScore
+
+
+    lastPrice = close
+
+    // 🟩 Intraday Trend (table use)
+    [intraGrade, intraPct] = f_intradayTrend()
+    
+    // =====================================================
+    // 🔷 UTC / DTC SCORE (SCAN SAFE — SAME TF)
+    // =====================================================
+
+    ema10_utc = ta.ema(close, 10)
+    // ema50 already exists above — reuse it
+
+
+    utcBullZone = ema10_utc > ema50
+    dtcBearZone = ema10_utc < ema50
+    zoneWidth   = math.abs(ema10_utc - ema50)
+
+
+    var float utcMaxWidth = 0.0
+    var float dtcMaxWidth = 0.0
+    var int   utcBars = 0
+    var int   dtcBars = 0
+
+    if utcBullZone
+        utcBars += 1
+        utcMaxWidth := math.max(utcMaxWidth, zoneWidth)
+    else
+        utcBars := 0
+        utcMaxWidth := 0
+
+    if dtcBearZone
+        dtcBars += 1
+        dtcMaxWidth := math.max(dtcMaxWidth, zoneWidth)
+    else
+        dtcBars := 0
+        dtcMaxWidth := 0
+
+    utcScore = math.round(
+        math.min(100, utcMaxWidth * 100) * 0.6 +
+        math.min(100, utcBars * 5)       * 0.4
+    )
+
+    dtcScore = math.round(
+        math.min(100, dtcMaxWidth * 100) * 0.6 +
+        math.min(100, dtcBars * 5)       * 0.4
+    )
+
+    wEma = ta.ema(zoneWidth, 5)
+    dW   = wEma - wEma[1]
+    eps  = zoneWidth * 0.02
+
+    utcState =
+         not utcBullZone ? "—" :
+         dW >  eps ? "▲ Exp" :
+         dW < -eps ? "▼ Nar" :
+                     "→ Flat"
+
+    dtcState =
+         not dtcBearZone ? "—" :
+         dW < -eps ? "▲ Nar" :
+         dW >  eps ? "▼ Exp" :
+                     "→ Flat"
+    
+    [entry, reentry, exitSig, entryPrice, lastPrice, stopPrice, tp1, tp2, tp3, strength, atr, stopDist, posSize, maruScore, maruPct, intraGrade, intraPct, utcScore, utcState, dtcScore, dtcState]
+
+
+
+
+
+
+
+// =====================================================
+// 📡 SECURITY CALLS
+// =====================================================
+// 🥇 Row #1 — chart symbol
+[e1,r1,x1,p1,lp1,sp1,tp11,tp21,tp31,s1,a1,sd1,ps1,m1,mp1,ig1,ip1, utc1,utcState1, dtc1,dtcState1] = request.security(chartSymbolID, tf, f_scan())
+
+var float prev_maru_chart  = na
+var float prev_intra_chart = na
+prev_maru_chart  := mp1
+prev_intra_chart := ip1
+
+// =====================================================
+// 🎯 CHART TRADE VALUES (ALIASES — SINGLE SYMBOL SAFE)
+// =====================================================
+chartEntry     = p1
+chartStop      = sp1
+chartTP1       = tp11
+chartTP2       = tp21
+chartTP3       = tp31
+chartLastPrice = lp1
+chartExit      = x1
+
+// =====================================================
+// 🎯 CHART SYMBOL DATA (VISUAL ONLY)
+// =====================================================
+isChartSymbol = syminfo.ticker == chartSymbolText
+
+
+isHTF = timeframe.isdaily or timeframe.isweekly or timeframe.ismonthly
+
+
+tablePositionRR =
+     tablePosInput == "Top Left"     ? position.top_left :
+     tablePosInput == "Bottom Left"  ? position.bottom_left :
+     tablePosInput == "Bottom Right" ? position.bottom_right :
+                                       position.top_right
+
+RR_BORDER = 1
+
+// =====================================================
+// 📊 RRTable — SAFE LIFECYCLE (SINGLE OWNER)
+// =====================================================
+var table dash = na
+
+// ── CREATE OR RECREATE ──
+if enableRRTable and na(dash)
+    dash := table.new(tablePositionRR, 12, RR_MAX_ROWS, border_width = RR_BORDER)
+
+// ── DELETE ──
+if not enableRRTable and not na(dash)
+    table.delete(dash)
+    dash := na
+
+bool rrReady = barstate.islast and enableRRTable and not na(dash)
+
+// =====================================================
+// 🧠 PREVIOUS SCORE TRACKING (RRTable)
+// =====================================================
+var float[] prev_rr_maru  = array.new_float()
+var float[] prev_rr_intra = array.new_float()
+
+if barstate.isfirst
+    for _ = 0 to RR_DATA_ROWS - 1
+        array.push(prev_rr_maru, na)
+        array.push(prev_rr_intra, na)
+
+// =====================================================
+// 📊 RRTable HEADER (ROW = 0 ONLY)
+// =====================================================
+if barstate.islast and enableRRTable and not na(dash)
+
+    // 1️⃣ CLEAR TABLE (SAFE)
+   
+    // 2️⃣ HEADER (ROW 0)
+
+    // 3️⃣ CHART SYMBOL (ROW 1)
+
+    // 4️⃣ AUTO BURSA ROWS (ROW 2+)
+
+    // 5️⃣ SORTED ROWS (ROW 2+ fallback)
+
+    table.clear(dash, 0, 0, 11, RR_MAX_ROWS - 1)
+    table.cell(dash,0,0,"SYM",  text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,1,0,"BULL", text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,2,0,"ENTRY",text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,3,0,"STOP", text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,4,0,"TP1",  text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,5,0,"TP2",   text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,6,0,"TP3",   text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,7,0,"D.MARU",text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,8,0,"INTRA",  text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,9,0,"UTC",text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    table.cell(dash,10,0,"DTC", text_color=hdrTextFinal, bgcolor=hdrBgFinal, text_size=tableTextSize)
+    bullBg_chart = s1 >= 70 ? colPos : s1 <= 30 ? colNeg : cellBgFinal
+    table.cell(dash, 0, 1, chartSymbolText, text_color=rrTxt, bgcolor=cellBgFinal, text_size=tableTextSize)
+    bullGrade_chart = f_bullGrade(s1)
+    table.cell(dash, 1, 1,str.tostring(s1) + " " + bullGrade_chart,bgcolor = bullBg_chart,text_color = rrTxt,text_size = tableTextSize)
+    table.cell(dash, 2, 1, str.tostring(p1,"#.###"), bgcolor=color.new(color.green,70), text_color=rrTxt, text_size=tableTextSize)
+    table.cell(dash, 3, 1, str.tostring(sp1,"#.###"), bgcolor=color.new(color.red,70), text_color=rrTxt, text_size=tableTextSize)
+    table.cell(dash, 4, 1, str.tostring(tp11,"#.###"), bgcolor=cellBgFinal, text_color=rrTxt, text_size=tableTextSize)
+    table.cell(dash, 5, 1, str.tostring(tp21,"#.###"), bgcolor=cellBgFinal, text_color=rrTxt, text_size=tableTextSize)
+    table.cell(dash, 6, 1, str.tostring(tp31,"#.###"), bgcolor=cellBgFinal, text_color=rrTxt, text_size=tableTextSize)
+    table.cell(dash,7, 1, str.tostring(mp1,"#.##")+"%"+" "+ m1, bgcolor=f_scoreDeltaBg(mp1, prev_maru_chart), text_color=rrTxt, text_size=tableTextSize)
+    table.cell(dash, 8, 1, str.tostring(ip1,"#.##")+"%"+" "+ig1, bgcolor=f_scoreDeltaBg(ip1, prev_intra_chart), text_color=rrTxt, text_size=tableTextSize)
+    table.cell(dash, 9, 1, str.tostring(utc1) + f_compactState(utcState1), bgcolor=f_scoreBg(utc1), text_color=rrTxt, text_size=tableTextSize)
+    table.cell(dash, 10, 1, str.tostring(dtc1) + f_compactState(dtcState1), bgcolor=f_scoreBg(dtc1), text_color=rrTxt, text_size=tableTextSize)
+
+//////////////////// PHASE 2 — SINGLE SCAN LOOP ////////////////////
+
+// 🔒 CLEAR CACHE ONCE PER BAR
+array.clear(rr_sym)
+array.clear(rr_s)
+array.clear(rr_p)
+array.clear(rr_sp)
+array.clear(rr_tp1)
+array.clear(rr_tp2)
+array.clear(rr_tp3)
+array.clear(rr_utcScore)
+array.clear(rr_utcState)
+array.clear(rr_dtcScore)
+array.clear(rr_dtcState)
+
+
+// 🔁 SCAN ACTIVE RR GROUP (ONE CALL PER SYMBOL ONLY)
+MAX_SCAN = math.min(array.size(RR_FINAL_UNIVERSE), RR_DATA_ROWS)
+
+for i = 0 to MAX_SCAN - 1
+    sym = array.get(RR_FINAL_UNIVERSE, i)
+
+
+    // 🔒 SINGLE request.security() ONLY
+    [_,_,_,p,_,sp,tp1,tp2,tp3,s,_,_,_,maruG, maruP, intraG, intraP, utc, utcState, dtc, dtcState] = request.security(sym, tf, f_scan())
+
+    // ✅ if symbol invalid → s = na → skipped automatically
+    isValid =
+         not na(s) and
+         not na(p) and
+         not na(sp) and
+         p > 0 and
+         sp > 0
+
+    if isValid
+
+        array.push(rr_sym, sym)
+        array.push(rr_s, s)
+        array.push(rr_p, p)
+        array.push(rr_sp, sp)
+        array.push(rr_tp1, tp1)
+        array.push(rr_tp2, tp2)
+        array.push(rr_tp3, tp3)
+
+        array.push(rr_maruGrade, maruG)
+        array.push(rr_maruPct,   maruP)
+
+        array.push(rr_intraGrade, intraG)
+        array.push(rr_intraPct,   intraP)
+
+        array.push(rr_utcScore, utc)
+        array.push(rr_utcState, utcState)
+
+        array.push(rr_dtcScore, dtc)
+        array.push(rr_dtcState, dtcState)
+
+
+        
+// 🧠 RENDER TOP RESULTS (FROM CACHE)
+if rrReady and array.size(rr_s) > 0
+    int[] sortedIdx = array.sort_indices(rr_s, order.descending)
+    MAX_AUTO = math.min(array.size(sortedIdx), RR_DATA_ROWS)
+
+    for i = 0 to MAX_AUTO - 1
+        idx = array.get(sortedIdx, i)
+        row = i + RR_HEADER_ROWS
+
+        sym = array.get(rr_sym, idx)
+        s   = array.get(rr_s, idx)
+        bullBg = s >= 70 ? colPos : s <= 30 ? colNeg : cellBgFinal
+        bullBg1 = s1 >= 70 ? colPos : s1 <= 30 ? colNeg : cellBgFinal
+        p   = array.get(rr_p, idx)
+        sp  = array.get(rr_sp, idx)
+        tp1 = array.get(rr_tp1, idx)
+        tp2 = array.get(rr_tp2, idx)
+        tp3 = array.get(rr_tp3, idx)
+        mg = array.get(rr_maruGrade, idx)
+        mp = array.get(rr_maruPct,   idx)
+        ig = array.get(rr_intraGrade, idx)
+        ip = array.get(rr_intraPct,   idx)
+        utc      = array.get(rr_utcScore, idx)
+        utcState = array.get(rr_utcState, idx)
+
+        dtc      = array.get(rr_dtcScore, idx)
+        dtcState = array.get(rr_dtcState, idx)
+
+        prevMp = array.get(prev_rr_maru, i)
+        prevIp = array.get(prev_rr_intra, i)
+
+
+
+
+
+        table.cell(dash, 0, row, sym, bgcolor=cellBgFinal, text_color=rrTxt, text_size=tableTextSize)
+        bullGrade = f_bullGrade(s)
+        table.cell(dash, 1, row,str.tostring(s) + " " + bullGrade,bgcolor = bullBg,text_color = rrTxt,text_size = tableTextSize)
+        table.cell(dash, 2, row, str.tostring(p,"#.###"), bgcolor=color.new(color.green,70), text_color=rrTxt, text_size=tableTextSize)
+        table.cell(dash, 3, row, str.tostring(sp,"#.###"), bgcolor=color.new(color.red,70), text_color=rrTxt, text_size=tableTextSize)
+        table.cell(dash, 4, row, str.tostring(tp1,"#.###"), bgcolor=cellBgFinal, text_color=rrTxt, text_size=tableTextSize)
+        table.cell(dash, 5, row, str.tostring(tp2,"#.###"), bgcolor=cellBgFinal, text_color=rrTxt, text_size=tableTextSize)
+        table.cell(dash, 6, row, str.tostring(tp3,"#.###"), bgcolor=cellBgFinal, text_color=rrTxt, text_size=tableTextSize)
+        table.cell(dash, 7, row, str.tostring(mp,"#.##")+"%"+" "+mg, bgcolor=f_scoreDeltaBg(mp, prevMp), text_color=rrTxt, text_size=tableTextSize)
+        table.cell(dash, 8, row, str.tostring(ip,"#.##")+"%"+" "+ig, bgcolor=f_scoreDeltaBg(ip, prevIp), text_color=rrTxt, text_size=tableTextSize)
+        table.cell(dash, 9, row, str.tostring(utc) + f_compactState(utcState), bgcolor=f_scoreBg(utc), text_color=rrTxt, text_size=tableTextSize)
+        table.cell(dash, 10, row, str.tostring(dtc) + f_compactState(dtcState), bgcolor=f_scoreBg(dtc), text_color=rrTxt, text_size=tableTextSize)
+
+        // update stored previous values
+        array.set(prev_rr_maru,  i, mp)
+        array.set(prev_rr_intra, i, ip)
+        
+        
+        
+
+
+// =====================================================
+// 🧹 FORCE CLEAR WHEN SHOWTRADEPLAN = OFF
+// =====================================================
+if not showTradePlan
+    if not na(entryLine)
+        line.delete(entryLine)
+        line.delete(stopLine)
+        line.delete(tp1Line)
+        line.delete(tp2Line)
+        line.delete(tp3Line)
+
+        entryLine := na
+        stopLine  := na
+        tp1Line   := na
+        tp2Line   := na
+        tp3Line   := na
+
+    if not na(entryLabel)
+        label.delete(entryLabel)
+        entryLabel := na
+
+// =====================================================
+// 🎯 TP HIT STATUS (CHART ONLY)
+// =====================================================
+tp1Hit = not na(chartEntry) and not na(chartTP1) and chartLastPrice >= chartTP1
+tp2Hit = not na(chartEntry) and not na(chartTP2) and chartLastPrice >= chartTP2
+
+
+// =====================================================
+// 📐 % DISTANCE CALCULATIONS (VISUAL ONLY)
+// =====================================================
+slPct  = not na(chartEntry) and not na(chartStop) ? ((chartStop - chartEntry) / chartEntry) * 100 : na
+tp1Pct = not na(chartEntry) and not na(chartTP1) ? ((chartTP1 - chartEntry) / chartEntry) * 100 : na
+tp2Pct = not na(chartEntry) and not na(chartTP2) ? ((chartTP2 - chartEntry) / chartEntry) * 100 : na
+tp3Pct = not na(chartEntry) and not na(chartTP3) ? ((chartTP3 - chartEntry) / chartEntry) * 100 : na
+
+// =====================================================
+// 📐 DRAW / REMOVE TRADE PLAN (CHART ONLY)
+// =====================================================
+if showTradePlan and isChartSymbol
+
+    // 🔴 EXIT → remove lines + labels
+    if chartExit and autoClearOnExit
+        if not na(entryLine)
+            line.delete(entryLine)
+            line.delete(stopLine)
+            line.delete(tp1Line)
+            line.delete(tp2Line)
+            line.delete(tp3Line)
+
+            entryLine := na
+            stopLine  := na
+            tp1Line   := na
+            tp2Line   := na
+            tp3Line   := na
+
+        if not na(entryLabel)
+            label.delete(entryLabel)
+            entryLabel := na
+
+    // 🟢 ENTRY / ACTIVE → draw or update lines
+    else if not na(chartEntry)
+
+        // ENTRY line
+        if na(entryLine)
+            entryLine := line.new(bar_index + offsetBars, chartEntry, bar_index + offsetBars + 1, chartEntry,
+                                  extend = extend.right, color = colEntry, width = 2)
+        else
+            line.set_xy1(entryLine, bar_index + offsetBars, chartEntry)
+            line.set_xy2(entryLine, bar_index + offsetBars + 1, chartEntry)
+
+        // STOP line
+        if na(stopLine)
+            stopLine := line.new(bar_index+ offsetBars, chartStop, bar_index+ offsetBars + 1, chartStop,
+                                 extend = extend.right, color = colSL, style = line.style_dashed)
+        else
+            line.set_xy1(stopLine, bar_index+ offsetBars, chartStop)
+            line.set_xy2(stopLine, bar_index+ offsetBars + 1, chartStop)
+
+        // TP1
+        if na(tp1Line)
+            tp1Line := line.new(bar_index+ offsetBars, chartTP1, bar_index+ offsetBars + 1, chartTP1,
+                                extend = extend.right, color = colTP)
+        else
+            line.set_xy1(tp1Line, bar_index+ offsetBars, chartTP1)
+            line.set_xy2(tp1Line, bar_index+ offsetBars + 1, chartTP1)
+
+        // TP2
+        if na(tp2Line)
+            tp2Line := line.new(bar_index+ offsetBars, chartTP2, bar_index+ offsetBars + 1, chartTP2,
+                                extend = extend.right, color = colTP)
+        else
+            line.set_xy1(tp2Line, bar_index+ offsetBars, chartTP2)
+            line.set_xy2(tp2Line, bar_index+ offsetBars + 1, chartTP2)
+
+        // TP3
+        if na(tp3Line)
+            tp3Line := line.new(bar_index+ offsetBars, chartTP3, bar_index+ offsetBars + 1, chartTP3,
+                                extend = extend.right, color = colTP)
+        else
+            line.set_xy1(tp3Line, bar_index+ offsetBars, chartTP3)
+            line.set_xy2(tp3Line, bar_index+ offsetBars + 1, chartTP3)
+
+
+
+    // 🏷️ ENTRY LABEL (create once)
+    if na(entryLabel)
+        entryLabel :=label.new(bar_index + offsetBars, chartEntry,"E.P\n" + str.tostring(chartEntry, "#.###"),style = label.style_label_left,textcolor = labelTextColor, color = labelBgFinal, size = labelSize)
+
+
+
+
+    // 🔄 KEEP ENTRY LABEL ALIGNED (SAFE)
+    if not na(entryLabel) and not na(chartEntry)
+        label.set_xy(entryLabel, bar_index + offsetBars, chartEntry)
+
+// 🎨 ENTRY LINE COLOR UPDATE (TP PROGRESS)
+if not na(entryLine) 
+    line.set_color(entryLine,tp2Hit ? color.yellow :tp1Hit ? color.green :color.blue)
+if not na(slPctLabel)
+    label.set_xy(slPctLabel, bar_index + offsetBars, chartStop)
+
+if not na(tp1PctLabel)
+    label.set_xy(tp1PctLabel, bar_index + offsetBars, chartTP1)
+
+if not na(tp2PctLabel)
+    label.set_xy(tp2PctLabel, bar_index + offsetBars, chartTP2)
+// =====================================================
+// 📘 HOW TO USE RR TABLE (INFO ONLY)
+// =====================================================
+groupNotes = "📘 How to Read RRTable"
+
+rrNotes = input.text_area(
+     title = "📖 RRTable Usage Guide (Read Only)",
+     defval =
+"RRTABLE – SMART SCAN & TRADE DASHBOARD\n\n" +
+
+"OVERVIEW\n" +
+"- Row #1 always shows the chart’s active symbol\n" +
+"- Rows #2–#10 auto-populate from a Bursa stock universe\n" +
+"- Stocks are ranked by Major Bull Score (same timeframe as chart)\n\n" +
+
+"HOW AUTO-SCAN WORKS\n" +
+"- The script scans a predefined Bursa universe\n" +
+"- Only stocks with strong bullish structure are ranked\n" +
+"- Top 9 strongest stocks are displayed automatically\n" +
+"- No manual symbol switching required\n\n" +
+
+"COLUMN GUIDE\n\n" +
+
+"SYM\n" +
+"- Stock symbol\n" +
+"- Row #1 = chart symbol\n" +
+"- Rows #2–#10 = top-ranked Bursa stocks\n\n" +
+
+"BULL (Major Bull Score)\n" +
+"- Measures long-term bullish dominance\n" +
+"- Based on price expansion from first major base\n" +
+"- Higher score = stronger primary uptrend\n\n" +
+
+"ENTRY\n" +
+"- Current calculated entry price\n" +
+"- Based on momentum + trend alignment\n\n" +
+
+"STOP\n" +
+"- ATR-based protective stop\n" +
+"- Automatically adapts to volatility\n\n" +
+
+"TP1 / TP2 / TP3\n" +
+"- Risk-based profit targets\n" +
+"- TP1 = 1R | TP2 = 2R | TP3 = 3R\n\n" +
+
+"VOLx\n" +
+"- Volume strength vs 20-period average\n" +
+"- Values ≥ 1.5 indicate strong participation\n\n" +
+
+"ATR / STOP D\n" +
+"- Volatility and stop distance check\n" +
+"- Avoid oversized stops for better position sizing\n\n" +
+
+"TRADE PLAN ON CHART\n" +
+"- Entry, Stop & Targets are drawn automatically\n" +
+"- Lines update dynamically as price moves\n" +
+"- Auto-cleared on exit (if enabled)\n\n" +
+
+"BEST USE PRACTICE\n" +
+"✓ Focus on STR ≥ 60 for swing & position trades\n" +
+"✓ Confirm with volume expansion (VOLx ≥ 1.5)\n" +
+"✓ Use TP levels for partial profit management\n" +
+"✓ Always respect stop distance vs account risk\n\n" +
+
+"IMPORTANT NOTES\n" +
+"- RRTable is a decision-support tool\n" +
+"- It does NOT auto-trade or guarantee profits\n" +
+"- Always align with higher timeframe structure\n\n" +
+
+"TIP\n" +
+"Use RRTable to quickly identify WHERE the money is flowing,\n" +
+"then execute only when price confirms your strategy.",
+     group = groupNotes
+)
+
+

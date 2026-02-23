@@ -1,0 +1,332 @@
+//@version=5
+indicator(title  = "S.UTC(toggle)",shorttitle = "S.UTC(toggle)", overlay = true, max_lines_count  = 500, max_labels_count = 500)
+
+// =====================================================
+// 🎛️ OVERLAY ENGINE SELECTION
+// =====================================================
+groupOverlayEngine = "🎛️ Overlay Engine"
+
+useUTC  = input.bool(true,  "S.UTC", group=groupOverlayEngine)
+useEMAx = input.bool(false, "EMAx",  group=groupOverlayEngine)
+useFuji = input.bool(false, "Fuji", group=groupOverlayEngine)
+useDCBB = input.bool(false, "DCBB", group=groupOverlayEngine)
+
+// =====================================================
+// 🎛️ S.UTC SIGNAL TOGGLES (Placed under VWAP)
+// =====================================================
+groupUTCToggles = "🎛️ Overlay Engine"
+
+showUTCArrowUp   = input.bool(true,  "UTC Arrow Up",   group=groupUTCToggles)
+showUTCArrowDown = input.bool(true,  "UTC Arrow Down", group=groupUTCToggles)
+//showUTCEntry     = input.bool(true,  "UTC Entry",     group=groupUTCToggles)
+//showUTCExit      = input.bool(true,  "UTC Exit",      group=groupUTCToggles)
+showUTCBuySellTxt = input.bool(true,  "UTC Buy / Sell Text", group=groupUTCToggles)
+
+
+dispUTC  = useUTC  ? display.all : display.none
+dispEMAx = useEMAx ? display.all : display.none
+dispFuji = useFuji ? display.all : display.none
+dispDCBB = useDCBB ? display.all : display.none
+
+// =====================================================
+// 🌓 VISUAL MODE (EMAx + Fuji ONLY)
+// =====================================================
+groupVisualMode = "🌓 Visual Mode"
+
+useDarkMode = input.bool(true, "Dark Mode (EMAx + Fuji)", group=groupVisualMode)
+// =====================================================
+// 🎨 EMAx + Fuji MODE COLORS
+// =====================================================
+
+// EMAx
+emaxBullMode = useDarkMode ? color.white : color.black
+emaxBearMode = useDarkMode ? color.red   : color.maroon
+
+// Fuji – bands & structure
+fujiMainCol  = useDarkMode ? color.yellow : color.orange
+fujiFillCol  = useDarkMode ? color.new(color.yellow, 30) : color.new(color.orange, 40)
+
+// Fuji – signals & highlights
+fujiEntryCol    = useDarkMode ? color.white  : color.black
+fujiReentryCol  = useDarkMode ? color.yellow : color.orange
+
+fujiBGEntry     = useDarkMode ? color.new(color.white, 65)
+                              : color.new(color.black, 85)
+
+fujiBGReentry   = useDarkMode ? color.new(color.yellow, 65)
+                              : color.new(color.orange, 85)
+
+// Fuji WMA trend
+fujiWmaBull = useDarkMode ? color.white   : color.black
+fujiWmaBear = useDarkMode ? color.fuchsia : color.red
+
+// =====================================================
+// 🎨 S.UTC SAFE USER COLORS
+// =====================================================
+groupUTCColor = "🎨 S.UTC Colors"
+
+// EMA trend
+emaBullColor = input.color(color.white,   "EMA Bullish", group=groupUTCColor)
+emaBearColor = input.color(color.fuchsia, "EMA Bearish", group=groupUTCColor)
+
+// EMA + AO Cloud
+cloudBullColor = input.color(#00ff00, "Cloud Bullish", group=groupUTCColor)
+cloudBearColor = input.color(#ff0000, "Cloud Bearish", group=groupUTCColor)
+cloudLineTransp = input.int(60, "Cloud Line Transparency", minval=0, maxval=100, group=groupUTCColor)
+cloudFillTransp = input.int(85, "Cloud Fill Transparency", minval=0, maxval=100, group=groupUTCColor)
+
+// UTC text signals
+utcBuyTextColor  = input.color(color.white,   "UTC Buy Text",  group=groupUTCColor)
+utcSellTextColor = input.color(color.fuchsia, "UTC Sell Text", group=groupUTCColor)
+
+// UTC arrows
+utcArrowUpColor   = input.color(color.white, "UTC Arrow Up",   group=groupUTCColor)
+utcArrowDownColor = input.color(color.red,   "UTC Arrow Down", group=groupUTCColor)
+
+// Entry visuals
+utcEntryBG    = input.color(color.new(color.white, 65), "Entry Background",   group=groupUTCColor)
+utcReentryBG  = input.color(color.new(color.lime,  65), "Reentry Background", group=groupUTCColor)
+utcEntryBar   = input.color(color.white,               "Entry Bar Color",     group=groupUTCColor)
+
+// =====================================================
+// 🔗 SHARED CORE SERIES (CALCULATE ONCE)
+// =====================================================
+ema5  = ta.ema(close, 5)
+ema10 = ta.ema(close, 10)
+ema34 = ta.ema(close, 34)
+ema50 = ta.ema(close, 50)
+
+ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+
+macd   = ta.ema(close,12) - ta.ema(close,26)
+signal = ta.ema(macd,9)
+hist   = macd - signal
+cci    = ta.cci(close, 20)
+rsi    = ta.rsi(close,14)
+mom    = close - close[10]
+
+// =====================================================
+// 📈 SHARED EMA10 / EMA50 (PLOT ONCE)
+// =====================================================
+emaTrendCol = ema10 > ema50 ? emaBullColor : emaBearColor
+
+
+pEMA10 = plot((useUTC or useEMAx) ? ema10 : na,color=color.new(color.white, 100), force_overlay=true)
+
+pEMA50 = plot((useUTC or useEMAx) ? ema50 : na,color=emaTrendCol,linewidth=2, force_overlay=true)
+
+// =====================================================
+// 🌫 EMA + AO CLOUD (S.UTC ONLY)
+// =====================================================
+cloudCol = ema5 > ema34 ? cloudBullColor : cloudBearColor
+
+
+c1 = plot(useUTC ? ema5 - ao : na, color=color.new(cloudCol, cloudLineTransp), force_overlay=true)
+c2 = plot(useUTC ? ema34 - ao : na, color=color.new(cloudCol, cloudLineTransp), force_overlay=true)
+c3 = plot(useUTC ? ema5       : na, color=color.new(cloudCol, cloudLineTransp), force_overlay=true)
+c4 = plot(useUTC ? ema34      : na, color=color.new(cloudCol, cloudLineTransp), force_overlay=true)
+c5 = plot(useUTC ? ema5 + ao  : na, color=color.new(cloudCol, cloudLineTransp), force_overlay=true)
+c6 = plot(useUTC ? ema34 + ao : na, color=color.new(cloudCol, cloudLineTransp), force_overlay=true)
+
+
+fill(c1, c2, color=color.new(cloudCol, cloudFillTransp))
+fill(c3, c4, color=color.new(cloudCol, cloudFillTransp))
+fill(c5, c6, color=color.new(cloudCol, cloudFillTransp))
+
+
+// =====================================================
+// 📦 MODULE #1 — S.UTC SIGNALS
+// =====================================================
+utcbuy  = ta.crossover(ema10, ema50)
+dtcsell = ta.crossunder(ema10, ema50)
+
+plotchar(utcbuy and useUTC and showUTCBuySellTxt,display=dispUTC, char='.', text="ᴜᴛᴄ", location=location.belowbar, size=size.tiny, color=color.new(color.black, 100), textcolor=utcBuyTextColor, force_overlay=true, editable=true)
+
+plotchar(dtcsell and useUTC and showUTCBuySellTxt, display=dispUTC, char='.',text="ᴅᴛᴄ",location=location.abovebar,size=size.tiny, color=color.new(color.black, 100), textcolor=utcSellTextColor, force_overlay=true, editable=true)
+
+BuRC = close > hl2[1] and close > hl2[2]
+BeRC = close < hl2[1] and close < hl2[2]
+
+plotshape( BuRC and useUTC and showUTCArrowUp, style=shape.arrowup, location=location.belowbar, color=utcArrowUpColor, size=size.tiny,force_overlay=true, editable=true)
+
+plotshape(BeRC and useUTC and showUTCArrowDown, style=shape.arrowdown, location=location.abovebar, color=utcArrowDownColor, size=size.tiny, force_overlay=true, editable=true)
+
+// Entry / Reentry
+entryUTC   = ta.crossover(macd, signal) and macd < 0 and hist > 0 and mom > ao
+reentryUTC = ta.crossover(macd, signal) and macd > 0 and hist > 0 and mom > ao and rsi > 50
+
+//bgcolor( useUTC and showUTCEntry and entryUTC ? utcEntryBG : na)
+
+//barcolor(useUTC and showUTCEntry and entryUTC ? utcEntryBar: na)
+
+//bgcolor(useUTC and showUTCExit and dtcsell   ? color.new(color.red, 70) : na)
+
+//bgcolor(useUTC and entryUTC   ? color.new(color.white, 65) : na)
+//bgcolor(useUTC and reentryUTC ? color.new(color.lime,  65) : na)
+//barcolor(useUTC and entryUTC ? color.white : na)
+
+// =====================================================
+// 📦 MODULE #2 — EMAx (VISUALS RESTORED)
+// =====================================================
+emaxColor = ema10 > ema50 ? emaxBullMode : emaxBearMode
+
+
+pE10 = plot(useEMAx ? ema10 : na, color=emaxColor, linewidth=1, force_overlay=true, editable=true)
+pE50 = plot(useEMAx ? ema50 : na, color=emaxColor, linewidth=1, force_overlay=true, editable=true)
+
+plot(useEMAx ? ema5  : na, color=emaxColor, linewidth=1, force_overlay=true, editable=true)
+plot(useEMAx ? ta.ema(close, 15) : na, color=emaxColor, linewidth=1, force_overlay=true, editable=true)
+pE6  = plot(useEMAx ? ta.ema(close, 6)  : na, color=emaxColor, linewidth=1, force_overlay=true, editable=true)
+pE18 = plot(useEMAx ? ta.ema(close, 18) : na, color=emaxColor, linewidth=1, force_overlay=true, editable=true)
+
+fill(pE10, pE50, color=color.new(emaxColor, 50))
+
+// EMAx logic (unchanged)
+emaxBuy  = ta.crossover(ema10, ema50)
+emaxSell = ta.crossunder(ema5, ema50)
+
+// =====================================================
+// 🚨 ALERTS
+// =====================================================
+alertcondition(entryUTC,   "UTC Entry",   "S.UTC ENTRY")
+alertcondition(reentryUTC, "UTC ReEntry", "S.UTC REENTRY")
+
+// =====================================================
+// 📦 MODULE — FUJI (FujiBMX Hybrid)
+// =====================================================
+
+// ---------------- Bollinger Core ----------------
+lenBB  = input.int(20, "BB Length", group="📦 Fuji")
+multBB = input.float(2.0, "BB Mult", group="📦 Fuji")
+srcBB  = input.source(close, "BB Source", group="📦 Fuji")
+
+midBB   = ta.sma(srcBB, lenBB)
+devBB   = multBB * ta.stdev(srcBB, lenBB)
+upperBB = midBB + devBB
+lowerBB = midBB - devBB
+
+mid2LBB = (midBB + lowerBB) / 2
+mid3LBB = (mid2LBB + lowerBB) / 2
+mid2UBB = (midBB + upperBB) / 2
+mid3UBB = (mid2UBB + upperBB) / 2
+
+plot(midBB, display=dispFuji, color=color.new(color.yellow, 0), linewidth=1, force_overlay=true, editable=true)
+pL1 = plot(mid2LBB, display=dispFuji, color=color.new(color.yellow, 100), force_overlay=true, editable=true)
+pL2 = plot(mid3LBB, display=dispFuji, color=color.new(color.yellow, 100), force_overlay=true, editable=true)
+fill(pL1, pL2, color=color.new(color.yellow, 30), display=dispFuji)
+
+pU1 = plot(mid2UBB, display=dispFuji, color=color.new(color.yellow, 100), force_overlay=true, editable=true)
+pU2 = plot(mid3UBB, display=dispFuji, color=color.new(color.yellow, 100), force_overlay=true, editable=true)
+fill(pU1, pU2, color=color.new(color.yellow, 30), display=dispFuji)
+
+// ---------------- AO ----------------
+aoFuji = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+
+// ---------------- CCI ----------------
+cciFuji = ta.cci(close, 20)
+plotchar(cciFuji > 200,  display=dispFuji, char="◉", location=location.abovebar, color=color.white, size=size.tiny, force_overlay=true, editable=true)
+plotchar(cciFuji < -200, display=dispFuji, char="◉", location=location.belowbar, color=color.red,   size=size.tiny, force_overlay=true, editable=true)
+
+bgcolor(useFuji and cciFuji > 200  ? color.new(color.red, 65)   : na)
+bgcolor(useFuji and cciFuji < -200 ? color.new(color.white, 65) : na)
+
+// ---------------- WMA Structure ----------------
+wma5L  = ta.wma(low, 5)
+wma10L = ta.wma(low, 10)
+
+wmaCol = wma5L > wma10L ? color.white : color.fuchsia
+pW1 = plot(wma5L,  display=dispFuji, color=wmaCol, transp=50, force_overlay=true, editable=true)
+pW2 = plot(wma10L, display=dispFuji, color=wmaCol, transp=50, force_overlay=true, editable=true)
+fill(pW1, pW2, color=color.new(wmaCol, 50), display=dispFuji)
+
+// ---------------- MACD (shared-style) ----------------
+macdF   = ta.ema(close,12) - ta.ema(close,26)
+signalF = ta.ema(macdF,9)
+histF   = macdF - signalF
+momF    = close - close[10]
+
+// ---------------- Fuji Entry Logic ----------------
+fujiEntry =
+     ta.crossover(wma5L, wma10L) and
+     macdF > signalF and
+     macdF < 0 and
+     signalF < 0 and
+     aoFuji < 0 and
+     cciFuji < 100 and
+     histF > 0
+
+fujiReentry =
+     ta.crossover(wma5L, wma10L) and
+     macdF > signalF and
+     macdF > 0 and
+     signalF > 0 and
+     aoFuji > 0 and
+     histF > 0 and
+     cciFuji > 50 and
+     cciFuji < 200
+
+plotchar(fujiEntry,   display=dispFuji, char="ᴇ", location=location.belowbar, color=color.white,  size=size.tiny, force_overlay=true, editable=true)
+plotchar(fujiReentry, display=dispFuji, char="ʀ", location=location.belowbar, color=color.yellow, size=size.tiny, force_overlay=true, editable=true)
+
+bgcolor(useFuji and fujiEntry   ? color.new(color.white, 65)  : na)
+bgcolor(useFuji and fujiReentry ? color.new(color.yellow, 65) : na)
+
+// =====================================================
+// 📦 MODULE — DCBB + Curve (Toggle Safe)
+// =====================================================
+groupDCBB = "📦 DCBB"
+
+// ---------- Inputs ----------
+dcbbLenBB = input.int(20, "BB Length", group=groupDCBB)
+dcbbMult  = input.float(2.0, "BB Mult", group=groupDCBB)
+dcbbLenDC = input.int(20, "DC Length", group=groupDCBB)
+
+// Curve Inputs (NEW)
+lenFast = input.int(1,  "Curve Fast Length",  minval=1, group=groupDCBB)
+lenSlow = input.int(5,  "Curve Slow Length",  minval=1, group=groupDCBB)
+lenC    = input.int(10, "Curve Smooth Length", minval=1, group=groupDCBB)
+
+// ---------- Curve Function ----------
+co(sFast, sSlow, lFast, lSlow, lC) =>
+    fastC = ta.sma(sFast, lFast)
+    slowC = ta.sma(sSlow, lSlow)
+    cC = fastC + slowC
+    ta.sma(cC, lC)
+
+// ---------- Bollinger (logic only) ----------
+bbMid = ta.sma(close, dcbbLenBB)
+bbDev = dcbbMult * ta.stdev(close, dcbbLenBB)
+bbUp  = bbMid + bbDev
+bbDn  = bbMid - bbDev
+
+// ---------- Donchian (logic only) ----------
+dcUp  = ta.highest(high, dcbbLenDC)
+dcDn  = ta.lowest(low, dcbbLenDC)
+dcMid = math.avg(dcUp, dcDn)
+
+// ---------- Shared DCBB Mid ----------
+dcbbMid = math.avg(bbMid, dcMid)
+
+// ---------- Curve Calculation ----------
+closeC = co(close, close, lenFast, lenSlow, lenC)
+
+// ---------- Colors ----------
+dcbbColor  = close > dcbbMid ? color.lime : close < dcbbMid ? color.red : color.gray
+curveColor = closeC > closeC[1] ? color.green : color.red
+
+// ---------- PLOTS (Toggle Safe) ----------
+plot(useDCBB ? dcbbMid : na,
+     title="DCBB Mid",
+     display=dispDCBB,
+     color=dcbbColor,
+     linewidth=2,
+     force_overlay=true,
+     editable=true)
+
+plot(useDCBB ? closeC / 2 : na,
+     title="DCBB Curve",
+     display=dispDCBB,
+     color=curveColor,
+     linewidth=2,
+     force_overlay=true,
+     editable=true)

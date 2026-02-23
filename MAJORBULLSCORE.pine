@@ -1,0 +1,904 @@
+//@version=6
+indicator("Major Bull Score Scanner", overlay=true)
+
+// =====================================================
+// 🌍 MARKET SELECTION
+// =====================================================
+groupMarket = "🌍 Market"
+
+// =====================================================
+// 🧭 SYMBOL SOURCE MODE
+// =====================================================
+symbolMode = input.string("Auto Scan","Symbol Source",options = ["Auto Scan", "Manual"],tooltip = "Select how symbols are sourced.\n\n" +"Auto Scan:\n" +"- Scans a predefined market universe automatically\n" +"- Symbols are ranked by Major Bull Score\n\n" +"Manual:\n" +"- Scan up to 15 user-selected symbols\n" +"- Best for watchlists or portfolio monitoring",group = groupMarket)
+
+marketMode = input.string("BURSA","Scan Market",options = ["BURSA", "BURSA_INDICES", "US", "US_INDICES", "WORLD_INDICES", "CRYPTO", "FCPO"],tooltip = "Select which market to scan.\n\n" +"BURSA: Malaysian equities (grouped)\n" +"US: US equities (grouped)\n" +"INDICES: Major market & sector indices\n" +"CRYPTO: Major crypto pairs\n" +"FCPO: Bursa Malaysia crude palm oil futures",group = groupMarket)
+
+rankBy = input.string("BULL",title = "Rank By",options = ["BULL", "D.MARU", "INTRA", "UTC"],tooltip = "Select which score is used for ranking.\n\n" +"BULL  : Major Bull Score (default)\n" +"D.MARU: Daily Marubozu %\n" +"INTRA : Intraday control %\n" +"UTC   : Uptrend continuation strength",group = groupMarket)
+
+bursaGroup = input.string("Group 1","Bursa Stock Group",options = ["Group 1","Group 2","Group 3","Group 4","Group 5","Group 6","Group 7","Group 8","Group 9","Group 10","Group 11","Group 12"],tooltip = "Universe grouping to manage scan limits.\n\n" +"Each group contains a different set of symbols.\n" +"Switch groups to scan the full market gradually.\n\n" +"Tip: Start with Group 1, then rotate daily.",group = groupMarket)
+
+scanTF  = input.timeframe("D", "Scan Timeframe", tooltip = "Maximum number of ranked symbols shown in the table.\n\n" +"Higher values show more stocks but may reduce clarity.\n" +"Recommended: 10–20 for best focus.", group=groupMarket)
+
+maxRows = input.int(20, "Top N Stocks", tooltip ="Maximum number of ranked symbols displayed.\n\n" +"Higher values show more stocks\n" +"but may reduce clarity.\n\n" +"Recommended: 10–20.", minval=5, maxval=30, group=groupMarket)
+
+// =====================================================
+// 🎨 TABLE STYLE
+// =====================================================
+groupStyle = "🎨 Table Style"
+
+isDark = input.bool(true, "Dark Mode", tooltip = "Toggle between Dark and Light table themes.\n\n" +"Dark Mode:\n" +"- Optimized for dark charts\n\n" +"Light Mode:\n" +"- Optimized for light charts", group=groupStyle)
+
+hdrBg  = isDark ? color.rgb(35,35,35) : color.rgb(230,230,230)
+hdrTxt = isDark ? color.white : color.black
+cellBg = isDark ? color.rgb(15,15,15) : color.white
+cellTxt = isDark ? color.white : color.black
+
+
+
+txtSize = input.string("Small","Text Size", options = ["Tiny", "Small", "Normal","Large"], tooltip ="Adjust table text size.\n\n" +"Tiny   : Dense scans\n" +"Small  : Balanced (recommended)\n" +"Normal : Large displays",group = groupStyle)
+
+tableTextSize =
+     txtSize == "Tiny"  ? size.tiny :
+     txtSize == "Small" ? size.small :
+     txtSize == "Large" ? size.large :
+                           size.normal
+
+
+
+
+// =====================================================
+// 🎛 TABLE CONTROLS
+// =====================================================
+groupCtrl = "🎛 Table Controls"
+
+// User text color
+userTextColor = input.color(color.white,"Text Color",tooltip ="Customize table text color.\n\n" +"Useful for contrast or\n" +"matching chart themes.",group = groupCtrl)
+// Text transparency
+textTransp = input.int(0, "Text Transparency", tooltip ="Text transparency level.\n\n" +"0  = fully opaque\n" +"90 = nearly invisible\n\n" +"Tip: Use slight transparency\n" +"for busy charts.", minval=0, maxval=90, group=groupCtrl)
+
+// Apply transparency to user-selected text color
+finalTextColor = color.new(userTextColor, textTransp)
+
+// Table position
+tableSide = input.string("Bottom Right","Table Position",options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"],tooltip = "Choose exact table corner position.",group = groupCtrl)
+
+
+// =====================================================
+// 🧠 MAJOR BULL SCORE (RRTable LOGIC – UNCHANGED)
+// =====================================================
+f_majorBullScore() =>
+    var float firstOpen = na
+    if na(firstOpen)
+        firstOpen := open
+
+    var float ath = na
+    var float atl = na
+
+    ath := na(ath) ? high : math.max(ath, high)
+    atl := na(atl) ? low  : math.min(atl, low)
+
+    rng = math.max(ath - atl, syminfo.mintick)
+
+    body = (close - firstOpen) / rng
+    upW  = (ath - close) / rng
+    loW  = (firstOpen - atl) / rng
+
+    score = (
+        close <= firstOpen ? 0 :
+        body >= 0.90 and upW <= 0.05 and loW <= 0.05 ? 100 :
+        body >= 0.80 ? 85 :
+        body >= 0.70 ? 70 :
+        body >= 0.60 ? 60 :
+        body >= 0.50 ? 50 :
+        30
+    )
+
+    score
+
+f_bullGrade(float score) =>
+     score >= 85 ? "A+" :
+     score >= 70 ? "A"  :
+     score >= 60 ? "B"  :
+     score >= 50 ? "C"  :
+     score >= 40 ? "D"  :
+     score >= 30 ? "E"  : "F"
+
+// =====================================================
+// 🧠 IMPROVED INTRADAY CONTROL SCORE (BODY + CLOSE)
+// =====================================================
+f_intraTrend() =>
+    rng  = math.max(high - low, syminfo.mintick)
+    body = close - open
+
+    // Buyer must control close
+    if close <= open
+        ["F", 0.0]
+    else
+        bodyPct  = body / rng
+        closePct = (close - low) / rng
+
+        // Weighted intraday control
+        pct = (bodyPct * 0.65 + closePct * 0.35) * 100
+        pct := math.min(100, math.max(0, pct))
+
+        grade =
+             pct >= 85 ? "A+" :
+             pct >= 70 ? "A"  :
+             pct >= 60 ? "B"  :
+             pct >= 50 ? "C"  :
+             pct >= 40 ? "D"  : "E"
+
+        [grade, pct]
+
+
+f_utc_dtc() =>
+    ema10 = ta.ema(close, 10)
+    ema50 = ta.ema(close, 50)
+
+    width = math.abs(ema10 - ema50)
+
+    utc = ema10 > ema50 ? math.min(100, width * 100) : 0
+    dtc = ema10 < ema50 ? math.min(100, width * 100) : 0
+
+    utcState = ema10 > ema50 ? "▲" : "—"
+    dtcState = ema10 < ema50 ? "▲" : "—"
+
+    [utc, utcState, dtc, dtcState]
+
+// =====================================================
+// 🔍 SCAN CORE
+// =====================================================
+f_scan() =>
+    price = close
+    ema50 = ta.ema(close, 50)
+    volX  = volume / ta.sma(volume, 20)
+    bull  = f_majorBullScore()
+
+    trend =
+         close > ema50 ? "UP" :
+         close < ema50 ? "DOWN" : "FLAT"
+
+    // Intra
+    [intraG, intraP] = f_intraTrend()
+
+    // UTC / DTC
+    [utc, utcState, dtc, dtcState] = f_utc_dtc()
+
+    // Daily Marubozu (NO extra request.security!)
+    rng  = math.max(high - low, syminfo.mintick)
+    body = close - open
+    pct  = body / rng
+
+    maruG =
+         close <= open ? "F" :
+         pct >= 0.90 ? "A+" :
+         pct >= 0.80 ? "A" :
+         pct >= 0.70 ? "B" :
+         pct >= 0.60 ? "C" :
+         pct >= 0.50 ? "D" : "E"
+
+    maruP = pct * 100
+
+    [price, bull, trend, volX,maruG, maruP,intraG, intraP,utc, utcState,dtc, dtcState]
+
+f_maruColor(string grade, float pct) => grade == "A+" ? color.lime : grade == "A"  ? color.green : grade == "B"  ? color.teal : grade == "C"  ? color.yellow : grade == "D"  ? color.orange : color.red
+
+// =====================================================
+// 📌 CURRENT CHART DATA (TABLE 0)
+// =====================================================
+[chartPrice,chartBull,chartTrend,chartVolx,chartMaruG,chartMaruP,chartIntraG,chartIntraP,chartUTC,chartUTCState,chartDTC,chartDTCState] = request.security(syminfo.tickerid, scanTF, f_scan())
+
+
+// =====================================================
+// ✍️ MANUAL BULL SYMBOLS
+// =====================================================
+groupManual = "✍️ Manual Bull Symbols"
+
+manualSym1  = input.symbol("MYX:MAYBANK", "Bull Stock 1", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym2  = input.symbol("MYX:CIMB",    "Bull Stock 2", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym3  = input.symbol("MYX:PBBANK",  "Bull Stock 3", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym4  = input.symbol("MYX:TENAGA",  "Bull Stock 4", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym5  = input.symbol("MYX:PETGAS",  "Bull Stock 5", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym6  = input.symbol("MYX:GAMUDA",  "Bull Stock 6", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym7  = input.symbol("MYX:TM",       "Bull Stock 7", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym8  = input.symbol("MYX:MAXIS",    "Bull Stock 8", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym9  = input.symbol("MYX:GREATEC",  "Bull Stock 9", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym10 = input.symbol("MYX:FRONTKN",  "Bull Stock 10", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym11 = input.symbol("MYX:INARI",   "Bull Stock 11", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym12 = input.symbol("MYX:VITROX",  "Bull Stock 12", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym13 = input.symbol("MYX:MPI",     "Bull Stock 13", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym14 = input.symbol("MYX:GENETEC", "Bull Stock 14", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+manualSym15 = input.symbol("MYX:UWC",     "Bull Stock 15", tooltip ="Manually selected symbol.\n\n" +"Only used when Symbol Source = Manual.\n\n" +"Tip: Use for watchlists\n" +"or portfolio stocks.", group=groupManual)
+
+// =====================================================
+// 🇲🇾 BURSA UNIVERSE
+// =====================================================
+string[] BURSA_UNIVERSE_1 = array.from(
+    "MYX:MAYBANK","MYX:CIMB","MYX:PBBANK","MYX:TENAGA","MYX:YTL",
+    "MYX:PMETAL","MYX:PETGAS","MYX:TOPGLOV","MYX:KOSSAN","MYX:SUPERMX",
+    "MYX:GAMUDA","MYX:IJM","MYX:SUNCON","MYX:UOADEV","MYX:E&O",
+    "MYX:INARI","MYX:VITROX","MYX:GREATEC","MYX:MPI","MYX:FRONTKN",
+    "MYX:TM","MYX:MAXIS","MYX:AXIATA","MYX:IAB","MYX:HLBANK",
+    "MYX:RHBBANK","MYX:AMBANK","MYX:BIMB","MYX:AFFIN","MYX:ABMB",
+    "MYX:MBSB","MYX:ALLIANZ","MYX:TAKAFUL","MYX:MANULFE","MYX:MNRB",
+    "MYX:AEON","MYX:AEONCR","MYX:IGBREIT","MYX:PAVREIT"
+)
+
+string[] BURSA_UNIVERSE_2 = array.from(
+    "MYX:PPB","MYX:F&N","MYX:NESTLE","MYX:QL","MYX:SPRITZER",
+    "MYX:KAWAN","MYX:DLADY","MYX:FFB","MYX:BONIA","MYX:PADINI",
+    "MYX:MRDIY","MYX:ECOSHOP","MYX:99SMART","MYX:ORIENT","MYX:PECCA",
+    "MYX:TOMEI","MYX:POHKONG","MYX:KOPI","MYX:BJFOOD",
+    "MYX:VSTECS","MYX:TM","MYX:TIMECOM","MYX:OCK","MYX:GDEX",
+    "MYX:POS","MYX:SKPRES","MYX:VS","MYX:MI","MYX:UNISEM",
+    "MYX:NOTION","MYX:KGB","MYX:KESM","MYX:PENTA","MYX:QES",
+    "MYX:JFTECH","MYX:UWC","MYX:GENETEC","MYX:KOBAY","MYX:WELLCAL"
+)
+
+string[] BURSA_UNIVERSE_3 = array.from(
+    "MYX:SUNWAY","MYX:SPSETIA","MYX:MAHSING","MYX:MATRIX","MYX:LBS",
+    "MYX:MKH","MYX:ECOWLD","MYX:IOIPG","MYX:IOICORP","MYX:SIMEPROP",
+    "MYX:UEMS","MYX:KERJAYA","MYX:PLENITU","MYX:PARAMON","MYX:TANCO",
+    "MYX:KPPROP","MYX:GUOCO","MYX:IWCITY","MYX:IGBB","MYX:KSL",
+    "MYX:EXSIMHB","MYX:OSK","MYX:MRCB","MYX:AME","MYX:CHGP",
+    "MYX:SBCCORP","MYX:TELADAN","MYX:CRESNDO","MYX:GLOMAC","MYX:PLB",
+    "MYX:IDEAL","MYX:CAMRES","MYX:CBIP","MYX:LSH","MYX:TRC",
+    "MYX:WOODLAN","MYX:KIMLUN","MYX:WCEHB","MYX:BPPLAS"
+)
+
+string[] BURSA_UNIVERSE_4 = array.from(
+"MYX:EMETALL","MYX:CAPITALA","MYX:SAPIND","MYX:MALTON","MYX:SPSETIA",
+"MYX:HUPSENG","MYX:MICROLN","MYX:LACMED","MYX:PGLOBE","MYX:LAYHONG",
+"MYX:AWC","MYX:RGB","MYX:HEIM","MYX:REACHTEN","MYX:MRCB",
+"MYX:MFLOUR","MYX:QL","MYX:MRDIY","MYX:PEB","MYX:PHARMA",
+"MYX:MAHSING","MYX:KARYON","MYX:SUNCON","MYX:ECOSHOP","MYX:PARAGON",
+"MYX:CIMB","MYX:HEVEA","MYX:PADINI","MYX:DPHARMA","MYX:DNEX",
+"MYX:RHONEMA","MYX:N2N","MYX:MTEC","MYX:SKBSHUT","MYX:DLADY",
+"MYX:MHC","MYX:IJM","MYX:SDG","MYX:MASTER"
+)
+
+string[] BURSA_UNIVERSE_5 = array.from(
+"MYX:TNLOGIS","MYX:WELLCHIP","MYX:LBS","MYX:SSF","MYX:AEON",
+"MYX:MEGAFB","MYX:MANULFE","MYX:HLFG","MYX:YXPM","MYX:PMETAL",
+"MYX:FOODIE","MYX:NTPM","MYX:HLBANK","MYX:MBSB","MYX:MSC",
+"MYX:CEPAT","MYX:EITA","MYX:SIMEPROP","MYX:LBALUM","MYX:SUNREIT",
+"MYX:SUNLOGY","MYX:BCB","MYX:BAUTO","MYX:JFTECH","MYX:PBBANK",
+"MYX:PWF","MYX:EKOVEST","MYX:IWCITY","MYX:PETRONM","MYX:CAB",
+"MYX:MYTECH","MYX:BIMB","MYX:NEXG","MYX:POHKONG","MYX:IOIPG",
+"MYX:JSB","MYX:FIHB","MYX:LSH","MYX:TANCO"
+)
+
+string[] BURSA_UNIVERSE_6 = array.from(
+"MYX:KPPROP","MYX:TOMEI","MYX:TENAGA","MYX:SUNWAY","MYX:MAYBANK",
+"MYX:FFB","MYX:HAPSENG","MYX:SAB","MYX:NSOP","MYX:GUOCO",
+"MYX:HOMERIZ","MYX:YEWLEE","MYX:RHBBANK","MYX:AMBANK","MYX:IQGROUP",
+"MYX:PBA","MYX:IGBREIT","MYX:TEOSENG","MYX:CHOOBEE","MYX:SWKPLNT",
+"MYX:PPB","MYX:HSPLANT","MYX:GAMUDA","MYX:EDARAN","MYX:GASMSIA",
+"MYX:NATGATE","MYX:WPRTS","MYX:KENERGY","MYX:AUMAS","MYX:BURSA",
+"MYX:IBRACO","MYX:TAFI","MYX:DELEUM","MYX:UTDPLT","MYX:SCIENTX",
+"MYX:OIB","MYX:WELLS","MYX:AFFIN","MYX:KIMLUN"
+)
+
+string[] BURSA_UNIVERSE_7 = array.from(
+"MYX:CCK","MYX:MITRA","MYX:MATRIX","MYX:IHH","MYX:GENTING",
+"MYX:KOPI","MYX:E&O","MYX:SPRITZER","MYX:JPG","MYX:ALLIANZ",
+"MYX:DIALOG","MYX:GESHEN","MYX:TAKAFUL","MYX:HEXZA","MYX:TEXCHEM",
+"MYX:DAYANG","MYX:AYER","MYX:GREATEC","MYX:HLCAP","MYX:JAGCPTL",
+"MYX:PLINTAS","MYX:F&N","MYX:TAANN","MYX:AJI","MYX:PETDAG",
+"MYX:KPJ","MYX:KLK","MYX:ORIENT","MYX:IOICORP","MYX:GENP",
+"MYX:ABMB","MYX:NESTLE","MYX:MISC","MYX:DRBHCOM","MYX:SEG",
+"MYX:AQUAWALK","MYX:INFOTEC","MYX:HAILY","MYX:IFCAMSC"
+)
+
+string[] BURSA_UNIVERSE_8 = array.from(
+"MYX:PTRANS","MYX:MERSEC","MYX:UNIQUE","MYX:ORKIM","MYX:CLOUDPT",
+"MYX:CSCSTEL","MYX:SYGROUP","MYX:SHANG","MYX:OCK","MYX:PMBTECH",
+"MYX:ZETRIX","MYX:PPJACK","MYX:YINSON","MYX:WONG","MYX:SAMCHEM",
+"MYX:OPENSYS","MYX:RESINTC","MYX:OPTIMAX","MYX:TSA","MYX:KSSC",
+"MYX:MUIPROP","MYX:ELSOFT","MYX:MIKROMB","MYX:DANCO","MYX:VLB",
+"MYX:AJIYA","MYX:PPHB","MYX:3A","MYX:PECCA","MYX:HUAYANG",
+"MYX:TECHBND","MYX:EDGENTA","MYX:HARNLEN","MYX:AYS","MYX:BJFOOD",
+"MYX:PANSAR","MYX:ECOMATE","MYX:PARAMON","MYX:HIAPTEK"
+)
+
+string[] BURSA_UNIVERSE_9 = array.from(
+"MYX:ACO","MYX:CHGP","MYX:PLS","MYX:SBCCORP","MYX:SWSCAP",
+"MYX:TELADAN","MYX:CRESNDO","MYX:KPS","MYX:TRC","MYX:FPGROUP",
+"MYX:WASCO","MYX:ICENTS","MYX:ADVENTA","MYX:EXSIMHB","MYX:TECHSTORE",
+"MYX:PANDA","MYX:EFFICEN","MYX:KESM","MYX:DOMINAN","MYX:GCAP",
+"MYX:KTI","MYX:BJLAND","MYX:DPIH","MYX:FOCUSP","MYX:AZAMJAYA",
+"MYX:BJCORP","MYX:NESTCON","MYX:PTT","MYX:ONEGLOVE","MYX:PLABS",
+"MYX:ALAQAR","MYX:ESCERAM","MYX:AXREIT","MYX:CGB","MYX:PANTECH",
+"MYX:MKHOP","MYX:FM","MYX:JTIASA","MYX:GLOMAC"
+)
+
+string[] BURSA_UNIVERSE_10 = array.from(
+"MYX:MASTEEL","MYX:PGF","MYX:HEXIND","MYX:APPASIA","MYX:CRESBLD",
+"MYX:MENANG","MYX:VIS","MYX:BONIA","MYX:MARCO","MYX:CHINWEL",
+"MYX:HIL","MYX:TOMYPAK","MYX:HIGHTEC","MYX:SENFONG","MYX:CABNET",
+"MYX:SAG","MYX:MAXIS","MYX:ANCOMNY","MYX:HEXTAR","MYX:AME",
+"MYX:L&G","MYX:MERCURY","MYX:PLB","MYX:LYSAGHT","MYX:MUH",
+"MYX:ORNA","MYX:GCE","MYX:EKSONS","MYX:LBICAP","MYX:WANGZNG",
+"MYX:SHH","MYX:MAGNA","MYX:FACBIND","MYX:MENTIGA","MYX:AORB",
+"MYX:99SMART","MYX:APM","MYX:SCICOM","MYX:CHEETAH"
+)
+
+string[] BURSA_UNIVERSE_11 = array.from(
+"MYX:TMCLIFE","MYX:SERNKOU","MYX:AMTEL","MYX:KEN","MYX:JKGLAND",
+"MYX:JCBNEXT","MYX:ENRA","MYX:CIHLDG","MYX:NIHSIN","MYX:SCIPACK",
+"MYX:DFCITY","MYX:HEXRTL","MYX:OCNCASH","MYX:HARISON","MYX:CANONE",
+"MYX:JISHAN","MYX:ARKA","MYX:CAMRES","MYX:CROESUS","MYX:CVIEW",
+"MYX:CEPCO","MYX:KSENG","MYX:TM","MYX:LPI","MYX:AEONCR",
+"MYX:UMCCA","MYX:MBMR","MYX:PETGAS","MYX:VSTECS","MYX:SOP",
+"MYX:TIMECOM","MYX:KERJAYA","MYX:AXIATA","MYX:MAGNI","MYX:PAVREIT",
+"MYX:PLENITU","MYX:INNO","MYX:UOADEV","MYX:DUFU"
+)
+
+string[] BURSA_UNIVERSE_12 = array.from(
+"MYX:CHB","MYX:HUMEIND","MYX:OSK","MYX:FIMACOR","MYX:ITMAX",
+"MYX:CDB","MYX:NHFATT","MYX:UCHITEC","MYX:BMGREEN","MYX:ULICORP",
+"MYX:GCB","MYX:CMSB","MYX:FIBRO","MYX:HARBOUR","MYX:SCOMNET",
+"MYX:WCEHB","MYX:JTGROUP","MYX:SDS","MYX:MIECO","MYX:KEINHIN",
+"MYX:NE","MYX:TSH","MYX:CBIP","MYX:WOODLAN","MYX:BPPLAS",
+"MYX:RCECAP","MYX:TOPGLOV","MYX:PWROOT","MYX:KMLOONG","MYX:NORTHERN",
+"MYX:TROP","MYX:TGUAN","MYX:ANNJOO","MYX:SNS","MYX:ECOWLD",
+"MYX:WINSTAR","MYX:MUHIBAH","MYX:SIME","MYX:HLIND"
+)
+
+// =====================================================
+// 🇺🇸 US UNIVERSE (GROUPED SHELLS)
+// =====================================================
+string[] US_UNIVERSE_1 = array.from(
+"NASDAQ:RGC","NASDAQ:CORT","NASDAQ:BLBX","NASDAQ:KOD","NYSE:ANET",
+"NASDAQ:MRNA","NYSE:AG","NASDAQ:VERA","NASDAQ:ARM","NYSE:MCB",
+"NYSE:NIO","NYSE:DELL","NYSE:ETSY","NASDAQ:EXPE","NYSE:W",
+"NASDAQ:META","NASDAQ:CELC","NASDAQ:VCYT","NASDAQ:MELI","NASDAQ:TWST",
+"NASDAQ:GH","NASDAQ:ZD","NYSE:TRU","NASDAQ:SMCI","NASDAQ:AMBA",
+"NASDAQ:FLGT","NASDAQ:GLSI","NYSE:UGP","NYSE:DD","NYSE:ZETA",
+"NASDAQ:SERV","NASDAQ:KELYA","NASDAQ:TARS","NASDAQ:ALGT","NASDAQ:JOYY",
+"NASDAQ:ALNY","NASDAQ:MDB","NYSE:HGV","NASDAQ:Z"
+)
+
+string[] US_UNIVERSE_2 = array.from(
+"NASDAQ:AEHR","NASDAQ:SLAB","NASDAQ:LULU","NYSE:DFH","NASDAQ:NTRA",
+"NYSE:VIPS","NASDAQ:BBIO","NASDAQ:ANAB","NYSE:GOLF","NASDAQ:PEGA",
+"NASDAQ:BSY","NYSE:VOYA","NASDAQ:BJRI","NYSE:IBP","NASDAQ:SFST",
+"NASDAQ:TCBI","NASDAQ:BCML","NASDAQ:ADBE","NYSE:TSM","NYSE:URI",
+"NASDAQ:ECPG","NYSE:CPA","NASDAQ:ALRS","NASDAQ:MCFT","NASDAQ:NXPI",
+"NYSE:TMHC","NASDAQ:ROKU","NASDAQ:ESTA","NYSE:CCS","NASDAQ:HFBL",
+"NASDAQ:ADI","NASDAQ:ACAD","NASDAQ:PAHC","NYSE:YETI","NASDAQ:BL",
+"NASDAQ:ETON","NASDAQ:PRDO","NASDAQ:BWMN","NASDAQ:AEIS"
+)
+
+string[] US_UNIVERSE_3 = array.from(
+"NYSE:VVV","NYSE:AX","NASDAQ:NTCT","NASDAQ:NICE","NASDAQ:SYNA",
+"NYSE:H","NYSE:ASB","NYSE:HASI","NYSE:B","NASDAQ:ESCA",
+"NASDAQ:SSNC","NASDAQ:HBCP","NYSE:REVG","NASDAQ:RBCAA","NYSE:BFH",
+"NASDAQ:SRRK","NASDAQ:ZUM","NASDAQ:SIMO","NASDAQ:EXLS","NYSE:ORA",
+"NYSE:RM","NASDAQ:WYNN","NASDAQ:RRR","NASDAQ:RYTM","NASDAQ:ASND",
+"NASDAQ:TXRH","NASDAQ:FIBK","NASDAQ:CWST","NASDAQ:FSBC","NYSE:BC",
+"NASDAQ:BVFL","NYSE:CFG","NASDAQ:HUBG","NASDAQ:CRNX","NYSE:PLNT",
+"NYSE:CPAY","NASDAQ:VKTX","NYSE:FHI","NYSE:PSTG"
+)
+
+string[] US_UNIVERSE_4 = array.from(
+"NYSE:JLL","NYSE:RYI","NYSE:AMG","NASDAQ:CG","NASDAQ:BLKB",
+"NYSE:WAL","NASDAQ:ACLS","NASDAQ:IRMD","NASDAQ:KRUS","NASDAQ:CRAI",
+"NYSE:DG","NASDAQ:IBKR","NASDAQ:FISI","NYSE:LAZ","NASDAQ:LMAT",
+"NYSE:ABG","NYSE:HLT","NASDAQ:COLL","NASDAQ:RUSHA","NYSE:GIS",
+"NASDAQ:MPWR","NASDAQ:CTSH","NYSE:SGI","NASDAQ:LQDT","NASDAQ:XRAY",
+"NYSE:GM","NYSE:DQ","NASDAQ:BLBD","NYSE:CNM","NASDAQ:SPFI",
+"NASDAQ:WLDN","NYSE:WCC","NASDAQ:ISRG","NYSE:SYF","NASDAQ:TSLA",
+"NYSE:PAG","NYSE:GS","NYSE:CRM","NASDAQ:KYMR"
+)
+
+string[] US_UNIVERSE_5 = array.from(
+"NASDAQ:NUVL","NASDAQ:TSBK","NYSE:OPLN","NASDAQ:GOOG","NASDAQ:AAPL",
+"NASDAQ:STEP","NASDAQ:EFSI","NASDAQ:ADP","NASDAQ:NVDA","NYSE:PLOW",
+"NASDAQ:PDD","NYSE:AS","NYSE:OKE","NASDAQ:SBUX","NASDAQ:BKNG",
+"NYSE:PRLB","NASDAQ:GOOGL","NYSE:CWEN","NYSE:BA","NASDAQ:TCMD",
+"NASDAQ:NMIH","NYSE:NOW","NYSE:MC","NASDAQ:KRYS","NYSE:WMS",
+"NASDAQ:IDYA","NASDAQ:CLMB","NYSE:PRG","NASDAQ:AAOI","NYSE:BOOT",
+"NASDAQ:BWFG","NASDAQ:AMZN","NASDAQ:LAUR","NYSE:AB","NYSE:NKE",
+"NYSE:AM","NYSE:BST","NASDAQ:NXST","NYSE:JKS"
+)
+
+string[] US_UNIVERSE_6 = array.from(
+"NYSE:ATKR","NYSE:A","NYSE:OMF","NASDAQ:PTGX","NYSE:SUN",
+"NASDAQ:MSFT","NYSE:MTD","NYSE:HCC","NASDAQ:HSIC","NYSE:DIS",
+"NYSE:EVR","NYSE:YUM","NASDAQ:MRCY","NASDAQ:BHF","NYSE:CBRE",
+"NYSE:WAT","NYSE:ENS","NASDAQ:LPLA","NASDAQ:NECB","NASDAQ:CSCO",
+"NASDAQ:MGYR","NYSE:MMS","NYSE:ANF","NASDAQ:VSAT","NYSE:WH",
+"NYSE:NRG","NASDAQ:ASO","NASDAQ:STLD","NASDAQ:WMG","NASDAQ:ON",
+"NASDAQ:SUPN","NASDAQ:CPRX","NYSE:TRNO","NASDAQ:PI","NYSE:PKG",
+"NYSE:TRGP","NASDAQ:ROAD","NYSE:AA","NYSE:DLR"
+)
+
+string[] US_UNIVERSE_7 = array.from(
+"NASDAQ:AMD","NASDAQ:EBAY","NYSE:MCD","NYSE:DAY","NYSE:BSX",
+"NYSE:GPI","NYSE:BBW","NASDAQ:MAT","NASDAQ:ITRN","NYSE:EXR",
+"NASDAQ:EXAS","NASDAQ:CRWD","NYSE:AL","NASDAQ:NATH","NASDAQ:NDAQ",
+"NASDAQ:VCTR","NYSE:THR","NYSE:MSCI","NYSE:BH","NASDAQ:PCB",
+"NYSE:EPD","NYSE:UBER","NASDAQ:EA","NYSE:AU","NYSE:BX",
+"NYSE:BRK.A","NASDAQ:RNA","NASDAQ:UTHR","NYSE:AER","NYSE:MET",
+"NASDAQ:CTRN","NASDAQ:FSLR","NASDAQ:VRSN","NASDAQ:CSGS","NYSE:CL",
+"NASDAQ:RMBS","NYSE:V","NASDAQ:CYBR","NASDAQ:MRTN"
+)
+
+string[] US_UNIVERSE_8 = array.from(
+"NASDAQ:LOGI","NASDAQ:EXEL","NYSE:HCA","NASDAQ:IROQ","NASDAQ:RVMD",
+"NASDAQ:TERN","NASDAQ:FUTU","NYSE:GD","NYSE:ALSN","NASDAQ:ENTG",
+"NASDAQ:LOPE","NYSE:BRK.B","NYSE:SNX","NASDAQ:SITM","NYSE:CALX",
+"NASDAQ:WBD","NYSE:TPR","NYSE:RACE","NASDAQ:MKSI","NASDAQ:VIAV",
+"NYSE:LDOS","NASDAQ:NWPX","NYSE:PRU","NASDAQ:PEP","NYSE:RL",
+"NASDAQ:ARLP","NYSE:NET","NASDAQ:MNST","NYSE:WHD","NASDAQ:CHRW",
+"NYSE:PFGC","NYSE:STAG","NASDAQ:LWAY","NASDAQ:HOOD","NYSE:MA",
+"NASDAQ:FAST","NASDAQ:NBIS","NYSE:DKL","NYSE:BSM"
+)
+
+string[] US_UNIVERSE_9 = array.from(
+"NYSE:TPB","NASDAQ:BKR","NYSE:MPLX","NASDAQ:LAMR","NYSE:SITE",
+"NYSE:EIG","NYSE:SPOT","NYSE:CRL","NASDAQ:NFLX","NASDAQ:AXSM",
+"NASDAQ:MIRM","NASDAQ:AMAT","OTC:GOVB","NYSE:AGO","NYSE:FBK",
+"NASDAQ:ENSG","NASDAQ:ALGM","NASDAQ:MEDP","NYSE:E","NYSE:ARES",
+"NYSE:SEI","NASDAQ:CAMT","NASDAQ:PDFS","NASDAQ:FANG","NYSE:DKS",
+"NYSE:TDG","NASDAQ:OSIS","NASDAQ:GEOS","NYSE:AIZ","NASDAQ:FIVE",
+"NYSE:AXS","NASDAQ:INTC","NASDAQ:AXON","NASDAQ:HURN","NYSE:BP",
+"NASDAQ:MU","NASDAQ:COKE","NASDAQ:FORM","NYSE:USFD"
+)
+
+string[] US_UNIVERSE_10 = array.from(
+"NYSE:NAT","NASDAQ:APP","NYSE:CF","NASDAQ:APLD","NASDAQ:MTSI",
+"NYSE:BURL","NASDAQ:ACMR","NASDAQ:AVAV","NASDAQ:AMKR","NYSE:PWR",
+"NASDAQ:STX","NASDAQ:TTMI","NASDAQ:DLTR","NYSE:FN","NYSE:FIX",
+"NASDAQ:UCTT","NASDAQ:CRDO","OTC:CRZY","NYSE:BE","NASDAQ:OSS",
+"NYSE:GE","NASDAQ:ISSC"
+)
+
+string[] US_UNIVERSE_11 = array.from("NASDAQ:RGC","NASDAQ:CORT","NASDAQ:BLBX")
+string[] US_UNIVERSE_12 = array.from("NASDAQ:KOD","NYSE:ANET","NASDAQ:MRNA","NYSE:AG","NASDAQ:VERA")
+
+string[] CRYPTO_UNIVERSE = array.from(
+    "HTX:BTCUSDT","HTX:ETHUSDT","HTX:BNBUSDT","HTX:SOLUSDT",
+    "HTX:ADAUSDT","HTX:DOGEUSDT","HTX:SHIBUSDT","HTX:LTCUSDT",
+    "HTX:ATOMUSDT","HTX:ALGOUSDT","HTX:SANDUSDT","HTX:MANAUSDT",
+    "HTX:THETAUSDT","HTX:1INCHUSDT","POLONIEX:HTUSDT"
+)
+
+string[] BURSA_INDICES_UNIVERSE = array.from(
+    "FTSEMYX:FBMKLCI","FTSEMYX:FBMEMAS","FTSEMYX:FBMHIJRAH",
+    "FTSEMYX:FBMACE","FTSEMYX:FBMSCAP","FTSEMYX:FBMMSCAP",
+    "INDEX:KLSE","MYX:FINANCE","MYX:TECHNOLOGY","MYX:ENERGY",
+    "MYX:PLANTATION","MYX:CONSUMER","MYX:UTILITIES","MYX:REIT",
+    "MYX:HEALTH","MYX:PROPERTIES","MYX:TRANSPORTATION"
+)
+
+// =====================================================
+// 🇺🇸 US INDICES UNIVERSE (TRADINGVIEW VALID)
+// =====================================================
+string[] US_INDICES_UNIVERSE = array.from(
+    // Major Indices
+    "SP:SPX",          // S&P 500
+    "NASDAQ:NDX",      // Nasdaq 100
+    "DJ:DJI",          // Dow Jones
+    "RUSSELL:RUT",     // Russell 2000
+
+    // Volatility
+    "CBOE:VIX",
+
+    // Sector ETFs (BEST PRACTICE)
+    "AMEX:XLE",        // Energy
+    "AMEX:XLB",        // Materials
+    "AMEX:XLI",        // Industrials
+    "AMEX:XLY",        // Consumer Discretionary
+    "AMEX:XLP",        // Consumer Staples
+    "AMEX:XLV",        // Health Care
+    "AMEX:XLF",        // Financials
+    "AMEX:XLK",        // Technology
+    "AMEX:XLC",        // Communication
+    "AMEX:XLU",        // Utilities
+    "AMEX:XLRE"        // Real Estate
+)
+
+string[] WORLD_INDICES_UNIVERSE = array.from(
+    "SP:SPX","NASDAQ:NDX","DJ:DJI","RUSSELL:RUT","CBOE:VIX",
+    "FTSEMYX:FBMKLCI",
+    "FTSE:UKX",
+    "TVC:NI225",
+    "HSI:HSI",
+    "SSE:000001",
+    "IDX:COMPOSITE",
+    "ASX:XJO",
+    "TVC:DJW"      // even if invalid → safely ignored
+)
+
+
+string[] FCPO_UNIVERSE = array.from(
+    "MYX:FCPO1!","MYX:FCPO2!",
+    "MYX:FCPOF2026","MYX:FCPOG2026","MYX:FCPOH2026","MYX:FCPOJ2026",
+    "MYX:FCPOK2026","MYX:FCPOM2026","MYX:FCPON2026","MYX:FCPOQ2026",
+    "MYX:FCPOU2026","MYX:FCPOX2026","MYX:FCPOZ2026"
+)
+
+
+// =====================================================
+// 🧠 MANUAL UNIVERSE
+// =====================================================
+string[] MANUAL_UNIVERSE = array.from(
+    manualSym1,  manualSym2,  manualSym3,  manualSym4,  manualSym5,
+    manualSym6,  manualSym7,  manualSym8,  manualSym9,  manualSym10,
+    manualSym11, manualSym12, manualSym13, manualSym14, manualSym15
+)
+
+
+// =====================================================
+// 🧹 CLEAN MANUAL UNIVERSE (REMOVE DUPLICATES & EMPTY)
+// =====================================================
+string[] CLEAN_MANUAL = array.new_string()
+
+for i = 0 to array.size(MANUAL_UNIVERSE) - 1
+    s = array.get(MANUAL_UNIVERSE, i)
+    if not na(s) and not array.includes(CLEAN_MANUAL, s)
+        array.push(CLEAN_MANUAL, s)
+
+
+
+// =====================================================
+// 🔄 ACTIVE UNIVERSE (SAFE GROUP SWITCH)
+// =====================================================
+
+string[] ACTIVE_UNIVERSE =
+     marketMode == "CRYPTO"        ? CRYPTO_UNIVERSE :
+     marketMode == "BURSA_INDICES" ? BURSA_INDICES_UNIVERSE :
+     marketMode == "US_INDICES"    ? US_INDICES_UNIVERSE :
+     marketMode == "WORLD_INDICES" ? WORLD_INDICES_UNIVERSE : 
+     marketMode == "FCPO"          ? FCPO_UNIVERSE :
+     marketMode == "US"            ?
+         bursaGroup == "Group 1"  ? US_UNIVERSE_1  :
+         bursaGroup == "Group 2"  ? US_UNIVERSE_2  :
+         bursaGroup == "Group 3"  ? US_UNIVERSE_3  :
+         bursaGroup == "Group 4"  ? US_UNIVERSE_4  :
+         bursaGroup == "Group 5"  ? US_UNIVERSE_5  :
+         bursaGroup == "Group 6"  ? US_UNIVERSE_6  :
+         bursaGroup == "Group 7"  ? US_UNIVERSE_7  :
+         bursaGroup == "Group 8"  ? US_UNIVERSE_8  :
+         bursaGroup == "Group 9"  ? US_UNIVERSE_9  :
+         bursaGroup == "Group 10" ? US_UNIVERSE_10 :
+         bursaGroup == "Group 11" ? US_UNIVERSE_11 :
+                                   US_UNIVERSE_12 :
+     // Default = BURSA
+         bursaGroup == "Group 1"  ? BURSA_UNIVERSE_1  :
+         bursaGroup == "Group 2"  ? BURSA_UNIVERSE_2  :
+         bursaGroup == "Group 3"  ? BURSA_UNIVERSE_3  :
+         bursaGroup == "Group 4"  ? BURSA_UNIVERSE_4  :
+         bursaGroup == "Group 5"  ? BURSA_UNIVERSE_5  :
+         bursaGroup == "Group 6"  ? BURSA_UNIVERSE_6  :
+         bursaGroup == "Group 7"  ? BURSA_UNIVERSE_7  :
+         bursaGroup == "Group 8"  ? BURSA_UNIVERSE_8  :
+         bursaGroup == "Group 9"  ? BURSA_UNIVERSE_9  :
+         bursaGroup == "Group 10" ? BURSA_UNIVERSE_10 :
+         bursaGroup == "Group 11" ? BURSA_UNIVERSE_11 :
+                                   BURSA_UNIVERSE_12
+
+// =====================================================
+// 🧭 FINAL UNIVERSE (AUTO / MANUAL SWITCH)
+// =====================================================
+string[] FINAL_UNIVERSE = symbolMode == "Manual" ? MANUAL_UNIVERSE : ACTIVE_UNIVERSE
+// =====================================================
+// 📊 DATA COLLECTION
+// =====================================================
+float[] rankScores = array.new_float()
+
+string[] syms  = array.new_string()
+string[] trds  = array.new_string()
+float[] vols   = array.new_float()
+
+string[] maruG = array.new_string()
+float[]  maruP = array.new_float()
+
+string[] intraG = array.new_string()
+float[]  intraP = array.new_float()
+
+float[] utcS = array.new_float()
+string[] utcSt = array.new_string()
+
+float[] dtcS = array.new_float()
+string[] dtcSt = array.new_string()
+
+int universeSize = array.size(FINAL_UNIVERSE)
+
+if universeSize == 0
+    label.new(bar_index, high, "ACTIVE_UNIVERSE EMPTY", textcolor=color.red)
+
+float[] prices = array.new_float()
+string[] bullG = array.new_string()
+
+
+// force safe value
+
+maxScan = universeSize == 0 ? 0 : symbolMode == "Manual" ? universeSize : marketMode == "CRYPTO" or marketMode == "US_INDICES" or marketMode == "WORLD_INDICES" ? math.min(15, universeSize) : marketMode == "FCPO" ? math.min(12, universeSize) : math.min(universeSize, 39)
+
+
+
+for i = 0 to maxScan - 1
+    sym = array.get(FINAL_UNIVERSE, i)
+
+    [price, bull, trend, volx, mg, mp, ig, ip, utc, utcState, dtc, dtcState] = request.security(sym,scanTF,f_scan(),ignore_invalid_symbol = true)
+
+    bullSafe  = na(bull)  ? 0 : bull
+    bullGrade = f_bullGrade(bullSafe)
+
+    trendSafe = na(trend) ? "NA" : trend
+    volxSafe  = na(volx)  ? 0 : volx
+    priceSafe = na(price) ? na : price
+    array.push(prices, priceSafe)
+
+
+    float rankValue =
+     rankBy == "BULL"   ? bullSafe :
+     rankBy == "D.MARU" ? mp :
+     rankBy == "INTRA"  ? ip :
+     rankBy == "UTC"    ? utc :
+     bullSafe
+
+    array.push(rankScores, na(rankValue) ? 0 : rankValue)
+    array.push(bullG, bullGrade)
+
+
+    array.push(syms, sym)
+    array.push(trds, trendSafe)
+    array.push(vols, volxSafe)
+    array.push(maruG, mg)
+    array.push(maruP, mp)
+
+    array.push(intraG, ig)
+    array.push(intraP, ip)
+
+    array.push(utcS, utc)
+    array.push(utcSt, utcState)
+
+    array.push(dtcS, dtc)
+    array.push(dtcSt, dtcState)
+
+
+
+
+// =====================================================
+// 🔃 SORT BY SELECTED RANK SCORE
+// =====================================================
+int[] idxs = array.sort_indices(rankScores, order.descending)
+
+pos =
+     tableSide == "Top Right"    ? position.top_right :
+     tableSide == "Top Left"     ? position.top_left  :
+     tableSide == "Bottom Left"  ? position.bottom_left :
+                                   position.bottom_right
+
+
+// =====================================================
+// 📋 TABLE 1 — SCANNER
+// =====================================================
+var table dash = table.new(position.bottom_right, 10, maxRows + 3, border_width=1)
+
+if barstate.islast
+    table.set_position(dash, pos)
+
+
+
+if barstate.islast or barstate.isrealtime 
+    // Always redraw tables
+    // ---------- TABLE 1 ----------
+    // ---------- SCANNER TABLE ----------
+    table.clear(dash, 0, 0)
+    // =================================================
+// 🏷️ TITLE ROW (ROW 0)
+// =================================================
+    table.cell(dash, 0, 0,"SYMBOL : " + syminfo.ticker + " (CHART)",bgcolor = hdrBg,text_color = finalTextColor,text_size = tableTextSize)
+    table.merge_cells(dash, 0, 0, 9, 0)
+    table.cell(dash, 0, 1, "RANK",   bgcolor=hdrBg, text_color=finalTextColor,text_size = tableTextSize)
+    table.cell(dash, 1, 1, "SYMBOL", bgcolor=hdrBg, text_color=finalTextColor,text_size = tableTextSize)
+    table.cell(dash, 2, 1, "PRICE",  bgcolor=hdrBg, text_color=finalTextColor,text_size = tableTextSize)
+
+    bullHdrBg = rankBy == "BULL" ? color.new(color.green, 60) : hdrBg
+
+    table.cell(dash, 3, 1, "BULL",   bgcolor=bullHdrBg, text_color=finalTextColor,text_size = tableTextSize)
+    table.cell(dash, 4, 1, "TREND",  bgcolor=hdrBg, text_color=finalTextColor,text_size = tableTextSize)
+    table.cell(dash, 5, 1, "VOLx",   bgcolor=hdrBg, text_color=finalTextColor,text_size = tableTextSize)
+    table.cell(dash, 6, 1, "D.MARU", bgcolor=bullHdrBg, text_color=finalTextColor,text_size = tableTextSize)
+    table.cell(dash, 7, 1, "INTRA",  bgcolor=bullHdrBg, text_color=finalTextColor,text_size = tableTextSize)
+    table.cell(dash, 8, 1, "UTC",    bgcolor=bullHdrBg, text_color=finalTextColor,text_size = tableTextSize)
+    table.cell(dash, 9, 1, "DTC",    bgcolor=hdrBg, text_color=finalTextColor,text_size = tableTextSize)
+
+    // =================================================
+// ⭐ CURRENT CHART ROW (ROW 2)
+// =================================================
+    rowChart = 2
+
+    bullBgChart =
+         chartBull >= 85 ? color.new(color.green, 60) :
+         chartBull >= 70 ? color.new(color.lime, 70)  :
+         chartBull >= 60 ? color.new(color.yellow,75) :
+                           color.new(color.red, 80)
+
+    maruColor  = f_maruColor(chartMaruG, chartMaruP)
+    intraColor = chartIntraG == "A+" ? color.lime :
+                 chartIntraG == "A"  ? color.green :
+                 chartIntraG == "B"  ? color.teal :
+                 chartIntraG == "C"  ? color.yellow :
+                 chartIntraG == "D"  ? color.orange : color.red
+
+    utcColor =
+         chartUTCState == "▲" and chartUTC >= 70 ? color.lime :
+         chartUTCState == "▲" ? color.green : color.gray
+
+    dtcColor =
+         chartDTCState == "▲" and chartDTC >= 70 ? color.red :
+         chartDTCState == "▲" ? color.orange : color.gray
+
+    table.cell(dash, 0, rowChart, "—", bgcolor=cellBg, text_color=color.yellow, text_size=tableTextSize)
+    table.cell(dash, 1, rowChart, syminfo.ticker, bgcolor=cellBg, text_color=color.yellow, text_size=tableTextSize)
+    table.cell(dash, 2, rowChart, str.tostring(chartPrice,"#.###"), bgcolor=cellBg, text_color=finalTextColor, text_size=tableTextSize)
+    chartBullG = f_bullGrade(chartBull)
+    table.cell(dash, 3, rowChart,str.tostring(chartBull) + " " + chartBullG,bgcolor=bullBgChart,text_color=color.white,text_size=tableTextSize)
+    table.cell(dash, 4, rowChart, chartTrend, bgcolor=cellBg, text_color=finalTextColor, text_size=tableTextSize)
+    table.cell(dash, 5, rowChart, str.tostring(chartVolx,"#.##"), bgcolor=cellBg, text_color=finalTextColor, text_size=tableTextSize)
+    table.cell(dash, 6, rowChart, str.tostring(chartMaruP,"#.##")+"% "+chartMaruG, bgcolor=cellBg, text_color=maruColor, text_size=tableTextSize)
+    table.cell(dash, 7, rowChart, str.tostring(chartIntraP,"#.##")+"% "+chartIntraG, bgcolor=cellBg, text_color=intraColor, text_size=tableTextSize)
+    table.cell(dash, 8, rowChart, str.tostring(chartUTC)+" "+chartUTCState, bgcolor=cellBg, text_color=utcColor, text_size=tableTextSize)
+    table.cell(dash, 9, rowChart, str.tostring(chartDTC)+" "+chartDTCState, bgcolor=cellBg, text_color=dtcColor, text_size=tableTextSize)
+
+
+
+    int rows = math.min(maxRows, array.size(idxs))
+
+    for i = 0 to rows - 1
+        idx = array.get(idxs, i)
+        bull = array.get(rankScores, idx)
+        volx = array.get(vols, idx)
+        priceVal = array.get(prices, idx)
+
+        bullBg =bull >= 85 ? color.new(color.green, 60) :bull >= 70 ? color.new(color.lime, 70) :bull >= 60 ? color.new(color.yellow, 75) : color.new(color.red, 80)
+
+        table.cell(dash, 0, i+3, str.tostring(i+1), bgcolor=cellBg, text_color=finalTextColor, text_size=tableTextSize)
+        table.cell(dash, 1, i+3, array.get(syms, idx), bgcolor=cellBg, text_color=finalTextColor, text_size=tableTextSize)
+        table.cell(dash,2,i + 3,na(priceVal) ? "—" : str.tostring(priceVal, "#.###"),bgcolor = cellBg,text_color = finalTextColor,text_size = tableTextSize)
+        bullGrade = array.get(bullG, idx)
+        table.cell(dash, 3, i+3,str.tostring(bull) + " " + bullGrade,bgcolor=bullBg,text_color=color.white,text_size=tableTextSize)
+        table.cell(dash, 4, i+3, array.get(trds, idx), bgcolor=cellBg, text_color=finalTextColor, text_size=tableTextSize)
+        table.cell(dash, 5, i+3, str.tostring(volx, "#.##"), bgcolor=cellBg, text_color=finalTextColor, text_size=tableTextSize)
+
+        // ---- D.MARU (FIXED & SORT-SAFE) ----
+        mg = na(array.get(maruG, idx)) ? "—" : array.get(maruG, idx)
+        mp = na(array.get(maruP, idx)) ? na  : array.get(maruP, idx)
+
+        maruColor = f_maruColor(mg, mp)
+
+        table.cell(dash, 6, i + 3,str.tostring(mp, "#.##") + "% " + mg,bgcolor = cellBg,text_color = maruColor,text_size = tableTextSize)
+       
+        intraGrade = array.get(intraG, idx)
+        intraColor =intraGrade == "A+" ? color.lime :intraGrade == "A"  ? color.green :intraGrade == "B"  ? color.teal :intraGrade == "C"  ? color.yellow :intraGrade == "D"  ? color.orange :color.red
+        
+        table.cell(dash, 7, i+3,str.tostring(array.get(intraP, idx), "#.##") + "% " + intraGrade,bgcolor = cellBg,text_color = intraColor,text_size = tableTextSize)
+        
+        utcVal = array.get(utcS, idx)
+        utcState = array.get(utcSt, idx)
+        utcColor =utcState == "▲" and utcVal >= 70 ? color.lime :utcState == "▲" ? color.green :utcVal > 0      ? color.gray :color.new(color.gray, 50)
+
+        table.cell(dash, 8, i+3,str.tostring(utcVal, "#.##") + utcState,bgcolor = cellBg,text_color = utcColor,text_size = tableTextSize)
+
+        dtcVal = array.get(dtcS, idx)
+        dtcState = array.get(dtcSt, idx)
+        dtcColor = dtcState == "▲" and dtcVal >= 70 ? color.red : dtcState == "▲" ? color.orange : dtcVal > 0      ? color.gray : color.new(color.gray, 50)
+
+        table.cell(dash, 9, i+3,str.tostring(dtcVal, "#.##") + dtcState,bgcolor = cellBg,text_color = dtcColor,text_size = tableTextSize)
+
+
+
+// =====================================================
+// 📘 HOW TO USE MAJOR BULL SCANNER (INFO ONLY)
+// =====================================================
+groupNotesBull = "📘 How to Read Major Bull Scanner"
+
+bullScannerNotes = input.text_area(
+     title = "📖 Major Bull Scanner Usage Guide (Read Only)",
+     defval =
+"MAJOR BULL SCORE SCANNER – MARKET LEADERSHIP RADAR\n\n" +
+
+"OVERVIEW\n" +
+"- Scans multiple markets for the strongest bullish stocks\n" +
+"- Ranks symbols by Major Bull Score on the selected timeframe\n" +
+"- Designed to identify PRIMARY trend leaders, not short-term signals\n\n" +
+
+"SCAN MODES\n\n" +
+
+"AUTO SCAN MODE\n" +
+"- Automatically scans a predefined universe\n" +
+"- Market selectable: BURSA, US, INDICES, CRYPTO, FCPO\n" +
+"- Bursa & US stocks are grouped to avoid scan limits\n" +
+"- Results update in real-time on the selected Scan Timeframe\n\n" +
+
+"MANUAL MODE\n" +
+"- Scan up to 15 user-selected symbols\n" +
+"- Best for watchlists, focus stocks, or portfolio monitoring\n" +
+"- Duplicate and empty symbols are auto-cleaned\n\n" +
+
+"TIMEFRAME LOGIC\n" +
+"- All scores are calculated using the Scan Timeframe\n" +
+"- Higher timeframes = stronger trend validation\n" +
+"- Daily or Weekly recommended for swing & position trading\n\n" +
+
+"COLUMN GUIDE\n\n" +
+
+"RANK\n" +
+"- Position after sorting by Major Bull Score\n" +
+"- Rank #1 = strongest bullish structure\n\n" +
+
+"SYMBOL\n" +
+"- Ticker symbol of the scanned instrument\n\n" +
+
+"PRICE\n" +
+"- Latest price from Scan Timeframe\n\n" +
+
+"BULL (Major Bull Score)\n" +
+"- Measures long-term bullish dominance (0–100)\n" +
+"- Based on expansion from the first major base\n" +
+"- 85–100 : Strong leader / institutional trend\n" +
+"- 70–84  : Healthy primary uptrend\n" +
+"- 60–69  : Early trend / watchlist\n" +
+"- <60    : Weak or developing structure\n\n" +
+
+"TREND\n" +
+"- EMA50 directional bias\n" +
+"- UP   = price above EMA50\n" +
+"- DOWN = price below EMA50\n\n" +
+
+"VOLx\n" +
+"- Current volume vs 20-period average\n" +
+"- ≥1.5 indicates strong participation\n" +
+"- Confirms validity of bullish expansion\n\n" +
+
+"D.MARU (Daily Marubozu)\n" +
+"- Measures candle body dominance\n" +
+"- A+ / A = strong demand control\n" +
+"- Helps detect accumulation or breakout strength\n\n" +
+
+"INTRA (Intraday Control)\n" +
+"- Shows where price closes within the candle range\n" +
+"- A+/A = buyers in control into close\n" +
+"- Weak grades indicate distribution or rejection\n\n" +
+
+"UTC (Uptrend Continuation)\n" +
+"- EMA10 vs EMA50 expansion strength\n" +
+"- ▲ with high value = accelerating uptrend\n" +
+"- Confirms trend continuation quality\n\n" +
+
+"DTC (Downtrend Continuation)\n" +
+"- EMA10 vs EMA50 downside pressure\n" +
+"- ▲ indicates bearish expansion risk\n" +
+"- Avoid long entries when DTC is dominant\n\n" +
+
+"HOW TO USE EFFECTIVELY\n\n" +
+"✓ Start with BULL ≥ 70 to filter quality trends\n" +
+"✓ Prefer TREND = UP with UTC confirmation\n" +
+"✓ Use VOLx ≥ 1.5 to confirm participation\n" +
+"✓ Combine D.MARU + INTRA for timing precision\n" +
+"✓ Use scanner to FIND leaders, chart to EXECUTE\n\n" +
+
+"BEST PRACTICE WORKFLOW\n" +
+"1. Scan market for top-ranked symbols\n" +
+"2. Open chart of selected leader\n" +
+"3. Align with higher timeframe structure\n" +
+"4. Use RRTable or entry logic for trade planning\n\n" +
+
+"IMPORTANT NOTES\n" +
+"- This scanner identifies MARKET LEADERS, not signals\n" +
+"- It does NOT predict reversals or exact entry points\n" +
+"- Always confirm with price action & risk management\n\n" +
+
+"TIP\n" +
+"Strong trends persist longer than expected.\n" +
+"Focus on leaders, not laggards.",
+     group = groupNotesBull
+)
+
+

@@ -1,0 +1,557 @@
+//@version=6
+///EzyPro Trading Methods
+///blackbackground
+///////////////////////////////////////////////////////////////
+indicator(title = 'OSOB(dash)', shorttitle = 'OSOB(dash)', overlay = false)
+
+// ===============================
+// ⚙️ OSCILLATOR ENGINE
+// ===============================
+groupEngine = '⚙️ Oscillator Engine'
+
+useOSOB = input.bool(true, 'OSOB', group = groupEngine)
+useOBV = input.bool(false, 'OBVema', group = groupEngine)
+useCMXH = input.bool(false, 'CMXH', group = groupEngine)
+useAOM2 = input.bool(false, 'AOM', group = groupEngine)
+usePVI = input.bool(false, 'PVI', group = groupEngine)
+useCRSI = input.bool(false, 'CRSI', group = groupEngine)
+useRBB_N  = input.bool(
+    false,
+    'RBB (Normalized)',
+    group = groupEngine,
+    tooltip = 'Royal Band Oscillator normalized to an oscillator scale'
+)
+
+useMACD_N = input.bool(
+    false,
+    'MACD (Normalized)',
+    group = groupEngine,
+    tooltip = 'MACD normalized for oscillator-style comparison'
+)
+
+
+dispRBB_N  = useRBB_N  ? display.all : display.none
+dispMACD_N = useMACD_N ? display.all : display.none
+
+
+
+// Display controllers
+dispOSOB = useOSOB ? display.all : display.none
+dispOBV = useOBV ? display.all : display.none
+dispCMXH = useCMXH ? display.all : display.none
+dispAOM2 = useAOM2 ? display.all : display.none
+dispPVI = usePVI ? display.all : display.none
+dispCRSI = useCRSI ? display.all : display.none
+
+// ============================================================
+// ========================== OSOB ============================
+// 🔒 ORIGINAL VISUAL & LOGIC PRESERVED — TOGGLE INJECTED
+// ============================================================
+// =====================
+// 🎨 OSOB USER COLORS (SAFE)
+// =====================
+groupOSOBColor = "🎨 OSOB Colors"
+
+osobBullColor = input.color(color.white,   "Bullish Color",  group=groupOSOBColor)
+osobBearColor = input.color(color.fuchsia, "Bearish Color",  group=groupOSOBColor)
+// =====================
+// 🎨 OSOB STOCH RSI COLORS (SAFE)
+// =====================
+kActiveColor = input.color(#00ff00, "K Active (OB / OS)", group=groupOSOBColor)
+kIdleColor   = input.color(color.new(#800000, 90), "K Idle", group=groupOSOBColor)
+
+dActiveColor = input.color(#ff0000, "D Active (OB / OS)", group=groupOSOBColor)
+dIdleColor   = input.color(color.new(#800000, 90), "D Idle", group=groupOSOBColor)
+// =====================
+// 🎨 OSOB STOCH RSI FILL COLORS (SAFE)
+// =====================
+osFillColor = input.color(color.new(#ff0000, 75), "Stoch OS Fill", group=groupOSOBColor)
+obFillColor = input.color(color.new(#00ff00, 75), "Stoch OB Fill", group=groupOSOBColor)
+
+src = close
+RSilen = input.int(7, minval = 1, title = 'Length')
+
+up = ta.rma(math.max(ta.change(src), 0), RSilen)
+down = ta.rma(-math.min(ta.change(src), 0), RSilen)
+
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
+
+// ===================== RSI EMA (OSOB CORE) =====================
+
+RsiEma1 = ta.ema(rsi, 21)
+UTCcolor = rsi > RsiEma1 ? osobBullColor : osobBearColor
+
+
+plot(useOSOB ? RsiEma1 : na, color = color.new(UTCcolor, 0), linewidth = 1, style = plot.style_line, editable = true, display = dispOSOB)
+
+// ===================== RSI HISTOGRAM =====================
+p = ta.ema(ta.rsi(close, 7), 21)
+
+plot(useOSOB ? p : na, title = 'rsi', color = color.new(UTCcolor, 50), linewidth = 1, style = plot.style_histogram, histbase = 50, editable = true, display = dispOSOB)
+
+// ===================== LEVEL LINES =====================
+// ===================== LEVEL LINE INPUTS =====================
+hlineLevel100 = input.float(100.0, 'HLine 100')
+hlineLevel80 = input.float(80.0, 'HLine 80')
+hlineLevel70 = input.float(70.0, 'HLine 70')
+hlineLevel50 = input.float(50.0, 'HLine 50')
+hlineLevel30 = input.float(30.0, 'HLine 30')
+hlineLevel20 = input.float(20.0, 'HLine 20')
+hlineLevel0 = input.float(0.0, 'HLine 0')
+
+hline(hlineLevel100, 'Reference Level', color = color.new(color.silver, 75), linestyle = hline.style_dashed, display = dispOSOB, editable = true)
+hline(hlineLevel80, 'Reference Level', color = color.new(color.lime, 75), linestyle = hline.style_dashed, display = dispOSOB, editable = true)
+hline(hlineLevel70, 'Reference Level', color = color.new(color.lime, 75), linestyle = hline.style_dashed, display = dispOSOB, editable = true)
+hline(hlineLevel50, 'Reference Level', color = color.new(color.silver, 75), linestyle = hline.style_dashed, display = dispOSOB, editable = true)
+hline(hlineLevel30, 'Reference Level', color = color.new(color.red, 75), linestyle = hline.style_dashed, display = dispOSOB, editable = true)
+hline(hlineLevel20, 'Reference Level', color = color.new(color.red, 75), linestyle = hline.style_dashed, display = dispOSOB, editable = true)
+hline(hlineLevel0, 'Reference Level', color = color.new(color.silver, 75), linestyle = hline.style_dashed, display = dispOSOB, editable = true)
+
+// reference plots for fills (hidden but controlled)
+hlinePlot80 = plot(useOSOB ? hlineLevel80 : na, color = color.lime, title = 'HLine Plot80', display = display.none, editable = true)
+hlinePlot70 = plot(useOSOB ? hlineLevel70 : na, color = color.lime, title = 'HLine Plot70', display = display.none, editable = true)
+hlinePlot30 = plot(useOSOB ? hlineLevel30 : na, color = color.red, title = 'HLine Plot30', display = display.none, editable = true)
+hlinePlot20 = plot(useOSOB ? hlineLevel20 : na, color = color.red, title = 'HLine Plot20', display = display.none, editable = true)
+
+fill(hlinePlot80, hlinePlot70, color = color.new(#00ff00, 65), editable = true)
+fill(hlinePlot30, hlinePlot20, color = color.new(#ff0000, 65), editable = true)
+
+// ===================== RSI ZONES =====================
+level_50 = 50
+
+level_50rsi1 = rsi > 50 ? rsi : 50
+level_50rsi2 = rsi < 50 ? rsi : 50
+
+p50 = plot(useOSOB ? level_50 : na, color = color.new(UTCcolor, 100), display = dispOSOB, editable = true)
+p60 = plot(useOSOB ? level_50rsi1 : na, color = color.new(UTCcolor, 100), display = dispOSOB, editable = true)
+p70 = plot(useOSOB ? level_50rsi2 : na, color = color.new(UTCcolor, 100), display = dispOSOB, editable = true)
+
+fill(p50, p60, color = color.new(UTCcolor, 75), editable = true)
+fill(p50, p70, color = color.new(UTCcolor, 75), editable = true)
+
+// ===================== STOCH RSI =====================
+smoothK = input.int(3)
+smoothD = input.int(3)
+lengthRSI = input.int(14)
+lengthStoch = input.int(14)
+
+rsi1 = ta.rsi(close, lengthRSI)
+k = ta.sma(ta.stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = ta.sma(k, smoothD)
+
+kOSco2 = k < 20 ? kActiveColor : kIdleColor
+kOBco2 = k > 80 ? kActiveColor : kIdleColor
+dOSco2 = d < 20 ? dActiveColor : dIdleColor
+dOBco2 = d > 80 ? dActiveColor : dIdleColor
+
+
+kPlotOS = plot(useOSOB ? k : na, color = color.new(kOSco2, 0), linewidth = 1, display = dispOSOB, editable = true)
+dPlotOS = plot(useOSOB ? d : na, color = color.new(dOSco2, 0), linewidth = 1, display = dispOSOB, editable = true)
+kPlotOB = plot(useOSOB ? k : na, color = color.new(kOBco2, 0), linewidth = 1, display = dispOSOB, editable = true)
+dPlotOB = plot(useOSOB ? d : na, color = color.new(dOBco2, 0), linewidth = 1, display = dispOSOB, editable = true)
+
+fill(dPlotOS, hlinePlot20, color = d < hlineLevel20 ? osFillColor : na, editable=true)
+fill(kPlotOS, hlinePlot20, color = d < hlineLevel20 ? osFillColor : na, editable=true)
+
+fill(dPlotOB, hlinePlot80, color = k > hlineLevel80 ? obFillColor : na, editable=true)
+fill(kPlotOB, hlinePlot80, color = k > hlineLevel80 ? obFillColor : na, editable=true)
+
+
+// ===================== CRSI =====================
+src3 = close
+lenrsi = input.int(3, 'RSI Length')
+lenupdown = input.int(2, 'UpDown Length')
+lenroc = input.int(100, 'ROC Length')
+
+updown(s) =>
+    ud = 0.0
+    ud := s == s[1] ? 0 : s > s[1] ? nz(ud[1]) <= 0 ? 1 : nz(ud[1]) + 1 : nz(ud[1]) >= 0 ? -1 : nz(ud[1]) - 1
+    ud
+
+rsi3 = ta.rsi(src3, lenrsi)
+updownrsi = ta.rsi(updown(src3), lenupdown)
+percentrnk = ta.percentrank(ta.roc(src3, 1), lenroc)
+crsi = math.avg(rsi3, updownrsi, percentrnk)
+crsiColor = input.color(color.white, "CRSI Color", group=groupOSOBColor)
+
+plot(useCRSI ? crsi : na, 'CRSI', color=crsiColor, linewidth = 1, display = dispCRSI, editable = true)
+
+// ============================================================
+// ======================== OBV (RAW / NORM) ==================
+// ============================================================
+
+// --- OBV calculation (RAW, volume-based)
+var float obvRaw = 0.0
+obvRaw += close > close[1] ? volume :
+          close < close[1] ? -volume : 0
+
+// --- OBV MA (applied on RAW OBV)
+lenOBV_MA = input.int(20, minval = 1, title = "OBV MA Length", group = groupEngine)
+obvMA_Raw = ta.sma(obvRaw, lenOBV_MA)
+
+// ============================================================
+// 🔄 NORMALIZATION (for dashboard display)
+// ============================================================
+normLen = input.int(100, "OBV Normalize Length", minval = 10, group = groupEngine)
+
+obvMin = ta.lowest(obvRaw, normLen)
+obvMax = ta.highest(obvRaw, normLen)
+
+// prevent divide-by-zero
+obvNorm = 100 * (obvRaw - obvMin) / math.max(obvMax - obvMin, 1)
+obvMA_Norm = ta.sma(obvNorm, lenOBV_MA)
+
+// ============================================================
+// 🎛 DISPLAY MODE SWITCH
+// ============================================================
+obvMode = input.string(
+     "Normalized",
+     title = "OBV Display Mode",
+     options = ["Normalized", "Raw"],
+     group = groupEngine
+)
+
+// --- Select what to plot
+obvPlotVal = obvMode == "Raw" ? obvRaw : obvNorm
+obvMAPlot  = obvMode == "Raw" ? obvMA_Raw : obvMA_Norm
+
+// ============================================================
+// 🎨 COLORS (self-contained)
+// ============================================================
+obvLineCol  = color.rgb(217, 255, 0)
+obvMACol    = color.new(#d2f33d, 40)
+obvFillBull = color.new(color.yellow, 75)
+obvFillBear = color.new(color.gray,  75)
+
+// ============================================================
+// 📊 PLOTS (ENGINE TOGGLE SAFE)
+// ============================================================
+pOBV = plot(
+    obvPlotVal,
+    title     = "OBV",
+    color     = obvLineCol,
+    linewidth = 2,
+    display   = dispOBV,
+    editable  = true
+)
+
+pOBV_MA = plot(
+    obvMAPlot,
+    title     = "OBV MA",
+    color     = obvMACol,
+    linewidth = 1,
+    display   = dispOBV,
+    editable  = true
+)
+
+// --- Fill (direction still based on RAW OBV logic)
+fill(
+    pOBV,
+    pOBV_MA,
+    color    = obvRaw > obvMA_Raw ? obvFillBull : obvFillBear,
+    display  = dispOBV,
+    editable = true
+)
+
+// ============================================================
+// ========================== CMXH ============================
+// ============================================================
+// =====================
+// 🎨 CMXH COLORS (SAFE)
+// =====================
+groupCMXHColor = "🎨 CMXH Colors"
+
+// Main CCI
+cmxBullColor = input.color(color.white, "CCI Bullish", group=groupCMXHColor)
+cmxBearColor = input.color(#ff0000,     "CCI Bearish", group=groupCMXHColor)
+
+// Histogram
+cmxHistBull  = input.color(color.white, "Histogram Bullish", group=groupCMXHColor)
+cmxHistBear  = input.color(#ff0000,     "Histogram Bearish", group=groupCMXHColor)
+
+// Levels
+cmxLevelMid  = input.color(color.white,  "Zero Level", group=groupCMXHColor)
+cmxLevelOB   = input.color(color.silver, "Upper Extreme (+200)", group=groupCMXHColor)
+cmxLevelOS   = input.color(#ff0000,      "Lower Extreme (-200)", group=groupCMXHColor)
+cmxLevelRef  = input.color(color.gray,   "±100 Levels", group=groupCMXHColor)
+
+// MA
+cmxMAColor   = input.color(#ff0000, "CCI MA", group=groupCMXHColor)
+
+// Trend fill
+cmxFillBull  = input.color(color.new(color.silver,65), "Trend Fill Bullish", group=groupCMXHColor)
+cmxFillBear  = input.color(color.new(#ff0000,65),      "Trend Fill Bearish", group=groupCMXHColor)
+
+// Markers
+cmxOBdot     = input.color(color.white, "OB Dot", group=groupCMXHColor)
+cmxOSdot     = input.color(#ff0000,     "OS Dot", group=groupCMXHColor)
+
+cmxBuyColor  = input.color(color.gray,  "Buy Marker", group=groupCMXHColor)
+cmxSellColor = input.color(#ff0000,     "Sell Marker", group=groupCMXHColor)
+
+groupCMXH = 'CMXH Signals'
+showCMXHSignals = input.bool(true, 'Show Buy/Sell', group = groupCMXH)
+showCMXHZones = input.bool(true, 'Show OB/OS', group = groupCMXH)
+
+lengthcci = input.int(20, minval = 1, title = 'CCI Length')
+srcci = close
+
+macci = ta.sma(srcci, lengthcci)
+cci = (srcci - macci) / (0.015 * ta.dev(srcci, lengthcci))
+
+// Main CCI
+pCCI = plot(cci, color=cmxBullColor, linewidth=1, display=dispCMXH)
+
+
+plot(cci,
+     color = cci > 0 ? cmxHistBull : cmxHistBear,
+     style = plot.style_histogram,
+     linewidth = 2,
+     display = dispCMXH)
+
+
+// Reference levels
+hline(200,  color=cmxLevelOB,  display=dispCMXH)
+hline(-200, color=cmxLevelOS,  display=dispCMXH)
+hline(0,    color=cmxLevelMid, display=dispCMXH)
+
+
+// CCI MA
+ccima1 = ta.sma(cci, 9)
+pCCIMA = plot(ccima1, color=cmxMAColor, linewidth=1, display=dispCMXH)
+
+
+// Trend fill
+fill(pCCI, pCCIMA,
+     color = cci > ccima1 ? cmxFillBull : cmxFillBear,
+     display=dispCMXH)
+
+
+// OB / OS
+OBcci = cci > 200
+OScci = cci < -200
+
+plotshape(showCMXHZones and OScci,
+          style=shape.circle,
+          location=location.bottom,
+          color=cmxOSdot,
+          size=size.tiny,
+          display=dispCMXH)
+
+plotshape(showCMXHZones and OBcci,
+          style=shape.circle,
+          location=location.top,
+          color=cmxOBdot,
+          size=size.tiny,
+          display=dispCMXH)
+
+
+// Buy / Sell
+buysigcci = ta.crossover(cci, ccima1) and cci < -50
+sellsigcci = ta.crossunder(cci, ccima1) and cci > 50
+
+plotshape(showCMXHSignals and buysigcci,
+          style=shape.triangleup,
+          location=location.bottom,
+          color=cmxBuyColor,
+          size=size.tiny,
+          display=dispCMXH)
+
+plotshape(showCMXHSignals and sellsigcci,
+          style=shape.triangledown,
+          location=location.top,
+          color=cmxSellColor,
+          size=size.tiny,
+          display=dispCMXH)
+
+
+// ============================================================
+// =========================== AOM2 ===========================
+// ============================================================
+// =====================
+// 🎨 AOM2 COLORS (SAFE)
+// =====================
+groupAOM2Color = "🎨 AOM2 Colors"
+
+// AO Histogram
+aoBullColor = input.color(color.white,  "AO Bullish", group=groupAOM2Color)
+aoBearColor = input.color(#ff00ff,      "AO Bearish", group=groupAOM2Color)
+
+// AO Zero Cross
+aoZeroColor = input.color(color.white,  "AO Zero Cross", group=groupAOM2Color)
+
+// Momentum
+momBullColor = input.color(color.white, "Momentum Bullish", group=groupAOM2Color)
+momBearColor = input.color(#ff00ff,     "Momentum Bearish", group=groupAOM2Color)
+
+// MACD
+macdHistBull = input.color(color.rgb(247, 240, 152), "MACD Hist Bullish", group=groupAOM2Color)
+macdHistBear = input.color(color.gray,               "MACD Hist Bearish", group=groupAOM2Color)
+
+macdLineColor = input.color(color.rgb(237, 241, 181), "MACD Line", group=groupAOM2Color)
+
+// Entry marker
+macdEntryColor = input.color(color.rgb(243, 241, 150), "MACD Entry Marker", group=groupAOM2Color)
+
+ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+
+// AO Histogram (MAIN)
+plot(ao,
+     color = ta.change(ao) <= 0 ? aoBearColor : aoBullColor,
+     style = plot.style_histogram,
+     linewidth = 3,
+     display = dispAOM2,
+     editable=true)
+
+
+// ---------------- Momentum ----------------
+lenMom = input.int(10)
+mom = close - close[lenMom]
+hline(0.00, color = color.new(color.silver, 50), linestyle = hline.style_dashed, linewidth = 1, editable = true)
+
+plot(mom, color = mom > 0 ? color.yellow : #ff0000, linewidth = 1, style = plot.style_line, display = dispAOM2, editable = true)
+
+// ---------------- MACD ----------------
+fastLen = input.int(12)
+slowLen = input.int(26)
+sigLen = input.int(9)
+
+macd = ta.ema(close, fastLen) - ta.ema(close, slowLen)
+signal = ta.ema(macd, sigLen)
+hist = macd - signal
+
+//======================================
+//=============== PVI ================== 
+//======================================
+
+// --- PVI Settings
+groupPVI = '📈 PVI Settings'
+
+pviEmaLen    = input.int(20, 'PVI EMA Length', group = groupPVI)
+normalizePVI = input.bool(true, 'Normalize PVI (Dashboard Mode)', group = groupPVI)
+
+// --- Core PVI (state-safe)
+var float pvi = 100.0
+
+if volume > volume[1] and close[1] != 0
+    pvi := pvi + ((close - close[1]) / close[1]) * pvi
+else
+    pvi := pvi
+
+// --- EMA Filter (UNCHANGED)
+pviEMA = ta.ema(pvi, pviEmaLen)
+
+// =====================================================
+// 🔽 TRUE 0–100 NORMALIZATION (ONLY CHANGE)
+// =====================================================
+pviLow  = ta.lowest(pvi, pviEmaLen)
+pviHigh = ta.highest(pvi, pviEmaLen)
+
+pviNorm = 100 * (pvi - pviLow) / math.max(pviHigh - pviLow, 1)
+
+// --- Output selector (UNCHANGED BEHAVIOR)
+pviMid = normalizePVI ? 50 : pviEMA
+pviVal = normalizePVI ? pviNorm : pvi
+
+// --- Colors (UNCHANGED INTENT)
+pviColor = pviVal >= pviMid ? color.new(color.yellow,0) : color.new(#ff0000,0)
+
+// --- Plots (2 plots only, like NVP — UNCHANGED)
+pPVI = plot(
+    pviVal,
+    title    = 'PVI',
+    color    = pviColor,
+    linewidth= 2,
+    display  = dispPVI,
+    editable = true
+)
+
+pPVI_MA = plot(
+    pviMid,
+    title    = 'PVI Mid',
+    color    = color.gray,
+    linewidth= 1,
+    display  = dispPVI,
+    editable = true
+)
+
+// =====================================================
+// 👑 RBB × MACD (NORMALIZED) — DASH ENGINE
+// =====================================================
+groupRBBMACD = "👑 RBB × MACD (Normalized)"
+
+rm_lengthRBB = input.int(20, "RBB Length", group=groupRBBMACD)
+rm_multRBB   = input.float(1.0, "RBB Deviation Mult", group=groupRBBMACD)
+
+rm_fastLen = input.int(12, "MACD Fast EMA", group=groupRBBMACD)
+rm_slowLen = input.int(26, "MACD Slow EMA", group=groupRBBMACD)
+rm_sigLen  = input.int(9,  "MACD Signal EMA", group=groupRBBMACD)
+rm_normLen = input.int(50, "MACD Normalize Length", group=groupRBBMACD)
+// ================= RBB CORE =================
+rm_midBB = ta.sma(close, rm_lengthRBB)
+rm_devBB = rm_multRBB * ta.stdev(close, rm_lengthRBB)
+rm_rbbOsc = (close - rm_midBB) / rm_devBB * 100
+
+rm_rbbColor = rm_rbbOsc > 0 ? #00ff00 :
+              rm_rbbOsc < 0 ? #ff0000  :
+                              color.gray
+
+// ================= MACD CORE =================
+rm_fastMA = ta.ema(close, rm_fastLen)
+rm_slowMA = ta.ema(close, rm_slowLen)
+
+rm_macdRaw = rm_fastMA - rm_slowMA
+rm_signal  = ta.ema(rm_macdRaw, rm_sigLen)
+
+// ================= NORMALIZATION =================
+rm_macdNorm   = rm_macdRaw / ta.stdev(rm_macdRaw, rm_normLen) * 100
+rm_signalNorm = rm_signal  / ta.stdev(rm_macdRaw, rm_normLen) * 100
+
+rm_macdColor = rm_macdNorm > rm_signalNorm ? color.rgb(2, 243, 252) : color.orange
+pRM_RBB = plot(
+    useRBB_N ? rm_rbbOsc : na,
+    title="RBB Oscillator (Norm)",
+    color=rm_rbbColor,
+    linewidth=2,
+    display=dispRBB_N
+)
+
+
+pRM_MACD = plot(
+    useMACD_N ? rm_macdNorm : na,
+    title="MACD (Normalized)",
+    color=rm_macdColor,
+    linewidth=2,
+    display=dispMACD_N
+)
+
+
+plot(
+    useMACD_N ? rm_signalNorm : na,
+    title="MACD Signal (Normalized)",
+    color=color.new(#fbff02, 0),
+    linewidth=1,
+    display=dispMACD_N
+)
+
+
+pRM_Zero = plot(
+    useRBB_N ? 0 : na,
+    title="Zero Line",
+    color=color.new(color.silver, 80),
+    linewidth=1,
+    display=dispRBB_N
+)
+
+fill(
+    pRM_RBB,
+    pRM_Zero,
+    color = rm_rbbOsc >= 0
+        ? color.new(color.lime, 85)
+        : color.new(color.red, 85),
+    display = dispRBB_N,
+    title="RBB Zero Fill"
+)
+
+
+

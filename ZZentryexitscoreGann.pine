@@ -4186,9 +4186,6 @@ f_gannWindow(float[] multipliers, float sourceValue) =>
 
     [startIndex, requiredLines]
 
-f_gannLevel(float[] multipliers, int startIndex, int requiredLines, int slot) =>
-    slot < requiredLines ? gannBase * array.get(multipliers, startIndex + slot) : na
-
 showGannOnChart = ZZ_MASTER_ON and showGannLines
 
 [supportStart, supportCount] = f_gannWindow(gannSupportMultipliers, gannSource)
@@ -4197,47 +4194,44 @@ showGannOnChart = ZZ_MASTER_ON and showGannLines
 gannSupportColor = color.new(color.lime, 0)
 gannResistanceColor = color.new(color.red, 0)
 
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 0) : na, "Gann Support 01", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 1) : na, "Gann Support 02", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 2) : na, "Gann Support 03", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 3) : na, "Gann Support 04", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 4) : na, "Gann Support 05", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 5) : na, "Gann Support 06", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 6) : na, "Gann Support 07", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 7) : na, "Gann Support 08", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 8) : na, "Gann Support 09", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 9) : na, "Gann Support 10", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 10) : na, "Gann Support 11", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 11) : na, "Gann Support 12", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 12) : na, "Gann Support 13", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 13) : na, "Gann Support 14", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 14) : na, "Gann Support 15", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 15) : na, "Gann Support 16", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 16) : na, "Gann Support 17", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 17) : na, "Gann Support 18", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 18) : na, "Gann Support 19", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannSupportMultipliers, supportStart, supportCount, 19) : na, "Gann Support 20", color = gannSupportColor, linewidth = 1, style = plot.style_linebr)
+var line[] gannSupportLines = array.new_line()
+var line[] gannResistanceLines = array.new_line()
 
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 0) : na, "Gann Resistance 01", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 1) : na, "Gann Resistance 02", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 2) : na, "Gann Resistance 03", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 3) : na, "Gann Resistance 04", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 4) : na, "Gann Resistance 05", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 5) : na, "Gann Resistance 06", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 6) : na, "Gann Resistance 07", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 7) : na, "Gann Resistance 08", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 8) : na, "Gann Resistance 09", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 9) : na, "Gann Resistance 10", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 10) : na, "Gann Resistance 11", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 11) : na, "Gann Resistance 12", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 12) : na, "Gann Resistance 13", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 13) : na, "Gann Resistance 14", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 14) : na, "Gann Resistance 15", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 15) : na, "Gann Resistance 16", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 16) : na, "Gann Resistance 17", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 17) : na, "Gann Resistance 18", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 18) : na, "Gann Resistance 19", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
-plot(showGannOnChart ? f_gannLevel(gannResistanceMultipliers, resistanceStart, resistanceCount, 19) : na, "Gann Resistance 20", color = gannResistanceColor, linewidth = 1, style = plot.style_linebr)
+f_syncGannLines(line[] lineStore, float[] multipliers, int startIndex, int requiredLines, color lineColor) =>
+    existingLines = array.size(lineStore)
+
+    if existingLines > requiredLines
+        for i = existingLines - 1 to requiredLines
+            line.delete(array.get(lineStore, i))
+            array.remove(lineStore, i)
+
+    if requiredLines > existingLines
+        for i = existingLines to requiredLines - 1
+            level = gannBase * array.get(multipliers, startIndex + i)
+            lineId = line.new(bar_index - 1, level, bar_index, level, xloc = xloc.bar_index, extend = extend.both, color = lineColor, width = 1)
+            array.push(lineStore, lineId)
+
+    if requiredLines > 0
+        for i = 0 to requiredLines - 1
+            level = gannBase * array.get(multipliers, startIndex + i)
+            lineId = array.get(lineStore, i)
+            line.set_xy1(lineId, bar_index - 1, level)
+            line.set_xy2(lineId, bar_index, level)
+            line.set_color(lineId, lineColor)
+
+f_clearGannLines(line[] lineStore) =>
+    lineCount = array.size(lineStore)
+    if lineCount > 0
+        for i = 0 to lineCount - 1
+            line.delete(array.get(lineStore, i))
+    array.clear(lineStore)
+
+if showGannOnChart
+    f_syncGannLines(gannSupportLines, gannSupportMultipliers, supportStart, supportCount, gannSupportColor)
+    f_syncGannLines(gannResistanceLines, gannResistanceMultipliers, resistanceStart, resistanceCount, gannResistanceColor)
+else
+    f_clearGannLines(gannSupportLines)
+    f_clearGannLines(gannResistanceLines)
 
 
 

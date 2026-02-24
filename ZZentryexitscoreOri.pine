@@ -1,0 +1,4124 @@
+//@version=6
+indicator("ZZ.EntryExit(score)",overlay = true, max_lines_count = 500, max_labels_count = 500)
+
+// =====================================================
+// 🧾 SYMBOL REGISTRY (ARRAY MODE)
+// =====================================================
+var string[] BURSA_NON_SYARIAH = array.from(
+    // =========================
+    // Banking & Finance
+    // =========================
+    "ABMB","AFFIN","AMBANK","CIMB", "MAYBANK", "HLBANK","HLFG","HLCAP","INSAS",
+    "KENANGA","OSK","RCECAP","MBSB","MNRB","ALLIANZ","LPI",
+    "ECM","ELKDESA","NHB","N2N", "PBBANK",
+
+    // =========================
+    // Gaming / Gambling
+    // =========================
+    "SPTOTO","GENTING","GENM","PANAMY","BERJAYA","BJSPORT", "MGM",
+
+    // =========================
+    // Alcohol / Tobacco
+    // =========================
+    "BAT", "CARLSBG", "HEIM", "CNOUHUA",
+
+    // =========================
+    // REITs (Conventional)
+    // =========================
+    "ARREIT","AXREIT","CMMT","HEKTAR","IGBREIT",
+    "KLCC","MQREIT","PAVREIT","SUNREIT","YTLREIT",
+
+    // =========================
+    // Energy / Refining / Petrochemical
+    // =========================
+    "HENGYUAN","LCTITAN", "YTL",
+
+    // =========================
+    // Media / Entertainment
+    // =========================
+    "ASTRO","STAR","MEDIA","MEDIAC",
+
+    // =========================
+    // Food / Consumer (Non-Halal Exposure)
+    // =========================
+    "BJFOOD","MFLOUR","TIENWAH","MYNEWS",
+
+    // =========================
+    // Property / Leisure / Others
+    // =========================
+    "MULPHA","E&O","SUPERMX","DKSH","INNATURE",
+    "OVH","PPHB","NORTHERN","SALIRAN", "maybulk",
+
+    // =========================
+    // ORIGINAL LIST (YOU PROVIDED)
+    // =========================
+    "3REN","99SMART","ADB","AEM","AEONCR","AGMO","AIM","ALCOM",
+    "ALPHA","AMFIRST","AMTEL","APEX","ARMADA","ATLAN",
+    "ATRIUM","AZAMJAYA","BCB","BENALEC","BESHOM","BHIC",
+    "BJASSET","BJCORP","BJLAND","BNASTRA","BOXPAK","BRIGHT",
+    "CAMAROE","CATCHA","COSMOS","EIB","EUROSP","FOODIE",
+    "GBAY","GPACKET","HEXRTL","KHJB","KHB","LEONFB",
+    "LKL","LYC","MEGAFB","MERSEC","SCICOM","SCGM",
+    "THRIVEN","TNLOGIS","UCREST","WATTA","WELLCHIP",
+    "WINSTAR","YTLPOWR"
+)
+var string[] US_DOUBTFUL = array.from(
+    "GOOGL","AMZN","META","PEP","AMD","DLTR","JD","MDLZ","MAR","CDNS"
+)
+var string[] US_NOT_HALAL = array.from(
+    "COST","NFLX","INTU","BKNG","ATVI","NTES","PAYX","EA","EBAY","MTCH","TMUS",
+    "CMCSA","HON","PYPL","ADP","FISV","MRNA","AEP","KHC","MELI","EXC","XEL",
+    "PCAR","CEG","VRSK","SIRI","LCID","AMGN","INTC","CHTR","VRTX","ABNB",
+    "KDP","MNST","WDAY","BIDU","CTSH","DDOG","ZS","ZM","MSFT","PDD"
+)
+var string[] CRYPTO_HALAL = array.from(
+    "BTC","ETH","ADA","MATIC","XLM","ALGO","ISLM","XTZ","SOL","AVAX"
+)
+// =====================================================
+// 🇺🇸 US SHARIAH MASTER LIST (Zoya + Musaffa)
+// =====================================================
+var string[] US_SHARIAH_MASTER = array.from(
+    // --- Musaffa (Halal)
+    "AAPL","TSLA","NVDA","AVGO","AZN","CSCO","WBA","SPLK","ASML","ADBE","GILD",
+    "PANW","TXN","QCOM","SBUX","REGN","ISRG","ADI","AMAT","MU","TEAM","ORLY",
+    "LRCX","SNPS","ADSK","CTAS","FTNT","CSX","BIIB","DXCM","MCHP","KLAC","LULU",
+    "NXPI","CRWD","ILMN","MRVL","ODFL","ROST","IDXX","CPRT","FAST","SGEN","VRSN",
+    "ANSS","ALGN","SWKS","DOCU","OKTA",
+
+    // --- Zoya (Verified pages)
+    "GOOG","GOOGL","META","AMBA","AMCR","ARM","ARMK","ANET","ASAN","AZN",
+    "BHP","BTG","BUD","COLD","DOCU","EA","ETNB","FTNT","GILD","KLAC","LRCX",
+    "MRVL","NXPI","ODFL","ORLY","PANW","REGN","ROST","SNPS","TEAM","TXN",
+    "VRSN","WMS","WMT","ZTS"
+)
+// =====================================================
+// 🚨 PN17 (Main Market – Financially Distressed)
+// =====================================================
+var string[] PN17_LIST = array.from(
+    "SAPNRG",      // Sapura Energy Bhd
+    "SCABLE",      // Sarawak Cable Bhd
+    "BINTAI",      // Bintai Kinden Corp Bhd
+    "HOHUP",       // Ho Hup Construction Bhd
+    "PHARMA",      // Pharmaniaga Bhd (still PN17 despite recovery progress)
+    "CAPITALA",    // Capital A Bhd (approved plan, PN17 until uplifted)
+    "VANTNRG",      // Vantris Energy
+    "ALAM",
+    "RENEUCO", 
+    "KHEESAN"
+)
+
+// =====================================================
+// ⚠️ GN3 (ACE Market – Financially Distressed)
+// =====================================================
+var string[] GN3_LIST = array.from(
+    "ASDION",      // Asdion Bhd
+    "LAMBO",       // Lambo Group Bhd
+    "WAJA"         // Waja Konsortium Bhd
+)
+
+// =====================================================
+// 🔌 MASTER CONTROL
+// =====================================================
+groupMaster = '🔌 Master Control'
+
+ZZ_MASTER_ON = input.bool(true, 'Enable ZZ Master Switch', group = groupMaster)
+
+showScoreTable = input.bool(true, "Show ZZ Score Table", group = groupMaster)
+
+compactTable   = input.bool(false, "ZZ Score compact mode", group = groupMaster)
+
+showAllSignals = input.bool(true,"Show Entry / ReEntry / Exit Signals",group = groupMaster)
+
+SESSION_SLAVE_ON = input.bool(true, 'Enable Session Markers', group = groupMaster)
+
+market = input.string('Bursa', 'Select Market', options = ['Bursa', 'US', 'FCPO'], group = groupMaster)
+// =====================================================
+// 📊 SCOREBOARD UI (POSITION & SIZE) — UI ONLY
+// SAFE TO MOVE
+// =====================================================
+groupScoreUI = "📊 ZZ Scoreboard • Layout"
+
+tablePositionInput = input.string(
+    "Top Right",
+    "Table Position",
+    options = ["Top Right", "Top Left", "Middle Right","Middle Left","Bottom Right", "Bottom Left"],
+    group = groupScoreUI
+)
+
+tableTextSizeInput = input.string(
+    "Normal",
+    "Table Text Size",
+    options = ["Tiny", "Small", "Normal", "Large"],
+    group = groupScoreUI
+)
+
+
+// =====================
+// 🏷️ MARKET TAG (ALERT USE)
+// =====================
+string marketTag = 'UNKNOWN'
+
+// =====================
+// 🌍 MARKET DETECTION (DECLARE ONCE, EARLY)
+// =====================
+isCrypto = syminfo.type == 'crypto'
+isFCPO = str.contains(syminfo.tickerid, ":FCPO")
+isBursa  = str.contains(syminfo.tickerid, "MYX")
+isUS     = not isCrypto and not isBursa and not isFCPO
+
+
+if isCrypto
+    marketTag := 'CRYPTO'
+else if isFCPO
+    marketTag := 'FCPO'
+else if isBursa
+    marketTag := 'BURSA'
+else
+    marketTag := 'US'
+
+
+// Full contract ticker (e.g. BMD:FCPOQ2026)
+string fcpoTickerID = syminfo.tickerid
+
+// Extract contract code (FCPOQ2026)
+string fcpoContract =
+     isFCPO
+     ? str.replace(fcpoTickerID, "BMD:", "")
+     : syminfo.ticker
+
+// Extract base symbol (FCPO)
+string fcpoBase = "FCPO"
+
+// FCPO display name (used in alerts)
+string fcpoDisplay = isFCPO ? fcpoContract : syminfo.ticker
+
+// =====================================================
+// 📆 Daily Session BULL Score V2 (Intraday)
+//   V2 = TREND Score + MARUBOZU Score
+// =====================================================
+
+// Manual override (optional)
+marketType = input.string("AUTO", "Market Type", options=["AUTO","BURSA","US","FCPO","CRYPTO"])
+
+// --- Define sessions
+string sessMain = "0000-2359"     // default
+string sessAM   = "0000-0000"     // only used for Bursa
+string sessPM   = "0000-0000"     // only used for Bursa
+bool useSplitSession = false
+
+if marketType == "BURSA"
+    // Bursa with lunch break (more accurate)
+    sessAM := "0900-1230"
+    sessPM := "1430-1700"
+    useSplitSession := true
+else if marketType == "US"
+    sessMain := "0930-1600"
+else if marketType == "FCPO"
+    sessMain := "0900-1800"
+else if marketType == "CRYPTO"
+    sessMain := "0000-2359"
+else
+    // AUTO mode (using syminfo.prefix)
+    if syminfo.prefix == "MYX"
+        sessAM := "0900-1230"
+        sessPM := "1430-1700"
+        useSplitSession := true
+    else if syminfo.prefix == "NASDAQ" or syminfo.prefix == "NYSE" or syminfo.prefix == "AMEX"
+        sessMain := "0930-1600"
+    else
+        sessMain := "0000-2359"
+
+
+// --- Session detection
+bool inSess = false
+bool sessStart = false
+
+if useSplitSession
+    bool inAM = not na(time(timeframe.period, sessAM))
+    bool inPM = not na(time(timeframe.period, sessPM))
+    inSess := inAM or inPM
+    sessStart := inSess and not inSess[1]
+else
+    inSess := not na(time(timeframe.period, sessMain))
+    sessStart := inSess and not inSess[1]
+
+// --- Session OHLC trackers
+var float dO = na
+var float dH = na
+var float dL = na
+var float dC = na
+
+if sessStart
+    dO := open
+    dH := high
+    dL := low
+    dC := close
+else if inSess
+    dH := math.max(dH, high)
+    dL := math.min(dL, low)
+    dC := close
+
+// --- Range
+float d_rng = na(dH) or na(dL) ? na : math.max(dH - dL, syminfo.mintick)
+
+// --- Metrics
+// 1) Trend score: close position in range (C near H = strong trend)
+float d_closePos = na(d_rng) ? na : (dC - dL) / d_rng
+
+
+// ===================================================== 
+// ⏰ FCPO EXPIRY PARSER (AUTO)
+// =====================================================
+
+// Extract FCPO contract code, example: FCPOQ2026 → Q2026
+string fcpoCode = isFCPO ? str.replace(fcpoContract, "FCPO", "") : ""
+
+// Month letter → month number (Bursa standard)
+f_fcpoMonth(string letter) =>letter == "F" ? 1  :letter == "G" ? 2  :letter == "H" ? 3  : letter == "J" ? 4  : letter == "K" ? 5  : letter == "M" ? 6  : letter == "N" ? 7  : letter == "Q" ? 8  : letter == "U" ? 9  : letter == "V" ? 10 : letter == "X" ? 11 : letter == "Z" ? 12 : int(na)
+
+// Month letter
+string fcpoMonthLetter =
+     str.length(fcpoCode) >= 1
+     ? str.substring(fcpoCode, 0, 1)
+     : ""
+
+// Year (SAFE v6)
+var int fcpoYear = na
+fcpoYear :=
+     str.length(fcpoCode) >= 5
+     ? int(str.tonumber(str.substring(fcpoCode, 1)))
+     : na
+
+// Month number
+int fcpoMonth = f_fcpoMonth(fcpoMonthLetter)
+
+
+// =====================
+// ⚠️ RISK LABEL (PINE v5 SAFE)
+// =====================
+string riskLabel = 'UNKNOWN'
+tf = timeframe.period
+
+if tf == '1' or tf == '3' or tf == '5'
+    riskLabel := 'SCALP'
+else if tf == '10' or tf == '15' or tf == '30'
+    riskLabel := 'INTRADAY'
+else
+    riskLabel := 'SWING'
+
+// =====================================================
+// BTST MARKET LABEL (ALERT USE ONLY)
+// =====================================================
+string btstMarketLabel = isUS ? "US BTST" : "BURSA BTST"
+
+// =====================================================
+// 🧪 AM / PM MICRO MODULE (MARKET-AWARE)
+// =====================================================
+
+// Default OFF (safe)
+bool inAM_dbg = false
+bool inPM_dbg = false
+
+// ----------------- BURSA -----------------
+if isBursa
+    string tzMY = "Asia/Kuala_Lumpur"
+    int h = hour(time, tzMY)
+    int m = minute(time, tzMY)
+
+    // AM: 09:00–12:30
+    inAM_dbg :=
+         (h > 9 and h < 12) or
+         (h == 9) or
+         (h == 12 and m <= 30)
+
+    // PM: 14:30–17:00
+    inPM_dbg :=
+         (h > 14 and h < 17) or
+         (h == 14 and m >= 30) or
+         (h == 17 and m == 0)
+
+// ----------------- US -----------------
+else if isUS
+    string tzUS = "America/New_York"
+    int h = hour(time, tzUS)
+    int m = minute(time, tzUS)
+
+    // AM: 09:30–12:00
+    inAM_dbg :=
+         (h == 9 and m >= 30) or
+         (h > 9 and h < 12)
+
+    // PM: 12:00–16:00
+    inPM_dbg :=
+         (h >= 12 and h < 16)
+
+// ----------------- CRYPTO -----------------
+else if isCrypto
+    int h = hour(time, "UTC")
+
+    // AM: 00:00–12:00 UTC
+    inAM_dbg := h < 12
+
+    // PM: 12:00–24:00 UTC
+    inPM_dbg := h >= 12
+
+
+var float amO_dbg = na
+var float amH_dbg = na
+var float amL_dbg = na
+var float amC_dbg = na
+
+var float pmO_dbg = na
+var float pmH_dbg = na
+var float pmL_dbg = na
+var float pmC_dbg = na
+
+bool amStart_dbg = inAM_dbg and not inAM_dbg[1]
+bool pmStart_dbg = inPM_dbg and not inPM_dbg[1]
+
+// --- AM
+if amStart_dbg
+    amO_dbg := open
+    amH_dbg := high
+    amL_dbg := low
+    amC_dbg := close
+else if inAM_dbg
+    amH_dbg := math.max(amH_dbg, high)
+    amL_dbg := math.min(amL_dbg, low)
+    amC_dbg := close
+
+// --- PM
+if pmStart_dbg
+    pmO_dbg := open
+    pmH_dbg := high
+    pmL_dbg := low
+    pmC_dbg := close
+else if inPM_dbg
+    pmH_dbg := math.max(pmH_dbg, high)
+    pmL_dbg := math.min(pmL_dbg, low)
+    pmC_dbg := close
+
+
+// =====================================================
+// 🧠 ZZ Score Intraday Trend Score (CANONICAL – SESSION ONLY)
+// =====================================================
+f_intradayTrendScore(_o, _h, _l, _c) =>
+    float _rng = math.max(_h - _l, syminfo.mintick)
+    float _pct = (_c - _l) / _rng * 100.0
+    string _grade = "NA"
+
+    if _c <= _o
+        _grade := "F"
+    else if _pct >= 90
+        _grade := "A+"
+    else if _pct >= 80
+        _grade := "A"
+    else if _pct >= 70
+        _grade := "B"
+    else if _pct >= 60
+        _grade := "C"
+    else if _pct >= 50
+        _grade := "D"
+    else
+        _grade := "E"
+
+    [_grade, _pct]
+// =====================================================
+// 🧠 ZZ INTRADAY TREND — SESSION WALK MODEL (v4)
+// Measures progress from session OPEN → NOW
+// =====================================================
+f_intradayTrendScore_v4(_o, _h, _l, _c) =>
+    float sessionRange = math.max(_h - _l, syminfo.mintick)
+
+    // 1️⃣ Net progress from OPEN
+    float netMovePct = (_c - _o) / sessionRange * 100.0
+
+    // 2️⃣ Candle participation (last N candles)
+    int lookback = 8
+    int agree = 0
+
+    for i = 0 to lookback - 1
+        if netMovePct > 0 and close[i] > open[i]
+            agree += 1
+        if netMovePct < 0 and close[i] < open[i]
+            agree += 1
+
+    float participationPct = agree / lookback * 100.0
+
+    // 3️⃣ Final score (directional, recovery-friendly)
+    float scorePct =
+         math.abs(netMovePct) * 0.65 +
+         participationPct     * 0.35
+
+    scorePct := math.min(100, math.max(0, scorePct))
+
+    // 4️⃣ Grade (UNCHANGED SCALE)
+    string grade = "E"
+
+    if netMovePct <= 0
+        grade := "F"
+    else if scorePct >= 90
+        grade := "A+"
+    else if scorePct >= 80
+        grade := "A"
+    else if scorePct >= 70
+        grade := "B"
+    else if scorePct >= 60
+        grade := "C"
+    else if scorePct >= 50
+        grade := "D"
+    else
+        grade := "E"
+
+    [grade, scorePct]
+
+// =====================================================
+// 🧠 INTRADAY COMPOSITE — DIRECTIONALLY SAFE (v3)
+// AM pullbacks do NOT kill PM recovery
+// =====================================================
+f_intradayTrend_from_AMPM(amPct, pmPct) =>
+    bool hasAM = not na(amPct)
+    bool hasPM = not na(pmPct)
+
+    // Use absolute strength, but bias toward PM
+    float amStrength = hasAM ? math.max(0, amPct) : na
+    float pmStrength = hasPM ? math.max(0, pmPct) : na
+
+    float intradayPct =
+         hasAM and hasPM ? (amStrength * 0.35 + pmStrength * 0.65) :
+         hasPM           ? pmStrength :
+         hasAM           ? amStrength :
+                           na
+
+    string grade = "NA"
+
+    if na(intradayPct)
+        grade := "NA"
+    else if intradayPct >= 85
+        grade := "A+"
+    else if intradayPct >= 70
+        grade := "A"
+    else if intradayPct >= 55
+        grade := "B"
+    else if intradayPct >= 40
+        grade := "C"
+    else if intradayPct >= 25
+        grade := "D"
+    else
+        grade := "E"
+
+    [grade, intradayPct]
+
+
+// =====================================================
+// 📌 AM / PM TREND SNAPSHOT (PERSISTENT)
+// =====================================================
+var float  amTrendPct_last   = na
+var string amTrendGrade_last = "NA"
+
+var float  pmTrendPct_last   = na
+var string pmTrendGrade_last = "NA"
+// =====================================================
+// 🧠 INTRADAY TREND — OPEN → CLOSE PROGRESSION (OC)
+// Used by AM & PM trend engines
+// =====================================================
+f_intradayTrendScore_OC(_o, _h, _l, _c) =>
+    float _rng = math.max(_h - _l, syminfo.mintick)
+
+    // Net progress from session OPEN
+    float netPct = (_c - _o) / _rng * 100.0
+    netPct := math.max(netPct, -20)   // limit AM damage
+
+
+    string grade = "E"
+
+    if netPct <= 0
+        grade := "F"
+    else if netPct >= 70
+        grade := "A+"
+    else if netPct >= 55
+        grade := "A"
+    else if netPct >= 40
+        grade := "B"
+    else if netPct >= 25
+        grade := "C"
+    else if netPct >= 10
+        grade := "D"
+    else
+        grade := "E"
+
+    [grade, netPct]
+
+// =====================================================
+// 🧠 AM / PM TREND SCORES (CANONICAL)
+// =====================================================
+string amTrendGrade = "NA"
+float  amTrendPct   = na
+
+string pmTrendGrade = "NA"
+float  pmTrendPct   = na
+
+if not na(amC_dbg)
+    [amTrendGrade, amTrendPct] = f_intradayTrendScore_OC(amO_dbg, amH_dbg, amL_dbg, amC_dbg)
+    amTrendPct_last   := amTrendPct
+    amTrendGrade_last := amTrendGrade
+
+if not na(pmC_dbg)
+    [pmTrendGrade, pmTrendPct] = f_intradayTrendScore_OC(pmO_dbg, pmH_dbg, pmL_dbg, pmC_dbg)
+    pmTrendPct_last   := pmTrendPct
+    pmTrendGrade_last := pmTrendGrade
+
+
+// Preserve AM until PM completes
+if not inAM_dbg and not inPM_dbg
+    amO_dbg := na
+    amH_dbg := na
+    amL_dbg := na
+    amC_dbg := na
+
+
+if not inPM_dbg
+    pmO_dbg := na
+    pmH_dbg := na
+    pmL_dbg := na
+    pmC_dbg := na
+
+// =====================================================
+// 🎨 THEME SYSTEM — VISUAL ONLY
+// 🚫 DO NOT PLACE LOGIC BELOW
+// =====================================================
+groupTheme = '🎨 ZZ.Theme'
+themeMode = input.string('Dark', 'Chart Theme', options = ['Dark', 'Light'], group = groupTheme)
+isDark = themeMode == 'Dark'
+
+// ---- Theme palette (VISUAL ONLY)
+colBull = isDark ? color.rgb(229, 255, 0) : color.green
+colBear = isDark ? color.fuchsia : color.maroon
+
+// ---- Label text auto-contrast
+labelTextCol = isDark ?  color.rgb(0, 0, 0) : color.rgb(255, 255, 255)
+
+// ---- Semantic aliases (visual only)
+colEntry = colBull
+colExit = colBear
+
+// ---- Background & bar theme colors (visual only)
+bgEntryCol = isDark ? color.new(color.white, 70) : color.new(color.green, 85)
+bgExitCol = isDark ? color.new(color.red, 70) : color.new(color.red, 85)
+
+barEntryCol = isDark ? color.white : color.green
+
+// ==================================================
+// 🎨 SESSION THEME (VISUAL ONLY)
+// ==================================================
+groupSessionTheme = '🎨 Bursa.US.FCPO.Theme'
+sessionTheme = input.string('Dark', 'Theme Mode', options = ['Dark', 'Light'], group = groupSessionTheme)
+isSessDark = sessionTheme == 'Dark'
+
+sessTextCol = isSessDark ? color.white : color.rgb(0, 0, 0)
+sessLblText = isSessDark ? color.rgb(0, 0, 0) : color.white
+sessVWAPCol = isSessDark ? color.yellow : color.rgb(150, 120, 0)
+// =====================================================
+// 🔐 GLOBAL ZZ GATE
+// =====================================================
+ZZ_ON = ZZ_MASTER_ON
+// =====================================================
+// 🎛️ ENGINE SELECTION (TOGGLE SWITCHES)
+// =====================================================
+groupEngine = '🎛️ Engine Selection'
+
+showZZMajor = input.bool(true, "ZZ Major Wave Line", group = groupEngine)
+showZZMinorWave   = input.bool(true,  "ZZ Minor Wave Line", group = groupEngine)
+showEWLine = input.bool(true, 'ZZ Subwave Line', group = groupEngine)
+showE2So = input.bool(true, "E2So ⬜| entry exit signal momentum base |Short|Medium|Long term|", group = groupEngine)
+showE2Su = input.bool(false, "E2Su 🟩| entry exit signal price base |Medium|Long term|", group = groupEngine)
+showIBO = input.bool(false, "IBO 🟦| entry exit signal short ema base |Shortterm|", group = groupEngine)
+showBTST_PRO = input.bool(true, "BTST_PRO signal 🟪|Shortterm|", group = groupEngine)
+// =====================================================
+// 🧠 ZZ CORE — ENTRY / EXIT SIGNAL (NEW ENGINE)
+// =====================================================
+groupZZCoreSignal = "🧠 ZZ Core • Entry Exit Signal"
+
+showZZCoreSignal = input.bool(
+     true,
+     "ZZ Core Entry Exit Signal 🟥|Medium|Long term|",
+     group = groupZZCoreSignal
+)
+
+showZZCoreEntry = input.bool(
+     true,
+     "Show Entry",
+     group = groupZZCoreSignal
+)
+
+showZZCoreReEntry = input.bool(
+     true,
+     "Show Re-entry",
+     group = groupZZCoreSignal
+)
+
+showZZCoreExit = input.bool(
+     true,
+     "Show Exit",
+     group = groupZZCoreSignal
+)
+
+
+// =====================================================
+// 🟣 ZZ MAJOR V2 — ENTRY / EXIT SETTINGS
+// =====================================================
+groupZZMajorV2 = "🌊 ZZ Major V2 • Entry Exit Signal"
+
+showZZMajorV2Signal = input.bool(false, "ZZ Major V2 Signal 🟪|Medium|Longterm|", group = groupZZMajorV2)
+showZZMajorV2Entry  = input.bool(true,  "Show Entry", group = groupZZMajorV2)
+showZZMajorV2Exit   = input.bool(true,  "Show Exit",  group = groupZZMajorV2)
+
+// Exit behavior
+zzV2PullbackPct = input.float(3.0, "Exit Pullback % from Peak", step = 0.1, group = groupZZMajorV2)
+
+// =====================================================
+// 🎛️ ZZ MINOR ENGINE (LEGACY / ORIGINAL)
+// =====================================================
+groupZZMinor = "🌊 ZZ Minor • Legacy Engine"
+
+showZZMinorSignal = input.bool(true,  "ZZ Minor Entry Exit Signal 🟨|Shortterm|", group = groupZZMinor)
+
+showZZMinorEntry  = input.bool(true,  "Show Entry", group = groupZZMinor)
+showZZMinorExit   = input.bool(true,  "Show Exit",  group = groupZZMinor)
+
+// =====================================================
+// 🌊 ZZ Subwave CONTROLS
+// =====================================================
+groupEWctrl = '🌊 ZZ Subwave Controls'
+
+showEWSignal = input.bool(true, 'ZZ Subwave Entry Exit Signal 🟩|Shortterm|', group = groupEWctrl)
+showEWEntry  = input.bool(true, 'Show Entry', group = groupEWctrl)
+showEWExit   = input.bool(true, 'Show Exit', group = groupEWctrl)
+
+// =====================================================
+// ENGINE FLAGS (MAPPED 1-TO-1, NO LOGIC CHANGE)
+// =====================================================
+zzMajorON = showZZMajor
+e2suDD_ON = showE2Su
+e2soDD_ON = showE2So
+iboDD_ON = showIBO
+ewLine_ON = showEWLine
+ewSignal_ON = showEWSignal
+
+// 🔔 ALERT SYSTEM: ALWAYS ON (UNGATED)
+
+zzLineColor_ON = color.new(#00ff00, 0)
+zzLineColor_OFF = color.new(#00ff00, 100)
+
+ema50Gate = e2suDD_ON or iboDD_ON
+
+// =====================================================
+//  ZZTRADE SETTINGS (ORIGINAL – UNTOUCHED)
+// =====================================================
+groupZZ = 'ZZTrade Settings'
+groupZZAdvanced = 'ZZTrade • Advanced (ZigZag Core)'
+
+showPivotPriceLabels = input.bool(true, 'Pivot Price Labels 🟥top | 🟩bottom')
+
+Zigzag = input.float(5, title = 'Deviation (%)', minval = 1, maxval = 100, group = groupZZAdvanced)
+MAX_DEPTH = 500 // hard safety cap (well below 1120)
+
+dalamInput = input.int(10, title = 'Depth', minval = 1, maxval = MAX_DEPTH, group = groupZZAdvanced)
+dalam = math.min(dalamInput, MAX_DEPTH)
+// =====================================================
+// 🎚️ EMA50 MASTER CONTROL
+// =====================================================
+groupEMA = '📐 EMA Controls'
+
+useEMA50 = input.bool(true, 'Enable EMA50 (Global)', group = groupEMA)
+
+
+
+// =====================
+// ZIGZAG CORE LOGIC
+// =====================
+pivots(src, length, isHigh) =>
+
+    if bar_index < length * 2
+        [int(na), float(na)]
+    else
+        p = src[length]
+        isFound = true
+
+        for i = 0 to length - 1 by 1
+            if isHigh and src[i] > p or not isHigh and src[i] < p
+                isFound := false
+                isFound
+
+        for i = length + 1 to 2 * length by 1
+            if isHigh and src[i] >= p or not isHigh and src[i] <= p
+                isFound := false
+                isFound
+
+        if isFound
+            [bar_index[length], p]
+        else
+            [int(na), float(na)]
+
+
+[iH, pH] = pivots(high, math.floor(dalam / 2), true)
+[iL, pL] = pivots(low, math.floor(dalam / 2), false)
+
+calc_dev(base_price, price) =>
+    100 * (price - base_price) / base_price
+
+var line lineLast = na
+var int iLast = 0
+var float pLast = 0
+var bool isHighLast = true // otherwise the last pivot is a low pivot
+var int linesCount = 0
+var bool isNewPivot = false
+
+pivotFound(dev, isHigh, index, price) =>
+    if index <= 0 or bar_index - index > 1000
+        [line(na), bool(na), false, iLast, pLast]
+    else
+        if isHighLast == isHigh and not na(lineLast)
+            if isHighLast ? price > pLast : price < pLast
+                if linesCount <= 1
+                    line.set_xy1(lineLast, index, price)
+                line.set_xy2(lineLast, index, price)
+                [lineLast, isHighLast, false, iLast, pLast]
+            else
+                [line(na), bool(na), false, iLast, pLast]
+        else
+            if na(lineLast)
+                id = line.new(index, price, index, price, color = ZZ_ON and zzMajorON ? zzLineColor_ON : zzLineColor_OFF, width = 2, force_overlay = true)
+                [id, isHigh, true, index, price]
+            else
+                if math.abs(dev) >= Zigzag
+                    id = (bar_index - iLast <= 1000) ?
+     line.new(iLast, pLast, index, price,
+         color = ZZ_ON and zzMajorON ? zzLineColor_ON : zzLineColor_OFF,
+         width = 2,
+         force_overlay = true)
+     : na
+                    [id, isHigh, true, index, price]
+                else
+                    [line(na), bool(na), false, iLast, pLast]
+
+if not na(iH) and not na(iL) and iH == iL
+    dev1 = calc_dev(pLast, pH)
+    [id2, isHigh2, isNew2] = pivotFound(dev1, true, iH, pH)
+    if isNew2
+        linesCount := linesCount + 1
+        linesCount
+    if not na(id2)
+        lineLast := id2
+        isHighLast := isHigh2
+        iLast := iH
+        pLast := pH
+        pLast
+
+    dev2 = calc_dev(pLast, pL)
+    [id1, isHigh1, isNew1] = pivotFound(dev2, false, iL, pL)
+    if isNew1
+        linesCount := linesCount + 1
+        linesCount
+    if not na(id1)
+        lineLast := id1
+        isHighLast := isHigh1
+        iLast := iL
+        pLast := pL
+        pLast
+else 
+    if not na(iH)
+        dev1 = calc_dev(pLast, pH)
+        [id, isHigh, isNew] = pivotFound(dev1, true, iH, pH)
+        if isNew
+            linesCount := linesCount + 1
+            linesCount
+        if not na(id)
+            lineLast := id
+            isHighLast := isHigh
+            iLast := iH
+            pLast := pH
+            pLast
+    else
+        if not na(iL)
+            dev2 = calc_dev(pLast, pL)
+            [id, isHigh, isNew] = pivotFound(dev2, false, iL, pL)
+            if isNew
+                linesCount := linesCount + 1
+                linesCount
+            if not na(id)
+                lineLast := id
+                isHighLast := isHigh
+                iLast := iL
+                pLast := pL
+                pLast
+
+// =====================================================
+// 🧠 ZZ MAJOR WAVE – PIVOT MEMORY
+// =====================================================
+var float zzLastMajorLow = na
+var float zzLastMajorHigh = na
+var int zzLastPivotBar = na
+
+if not na(iLast)
+    if not isHighLast
+        zzLastMajorLow := pLast
+        zzLastPivotBar := iLast
+        zzLastPivotBar
+    else
+        zzLastMajorHigh := pLast
+        zzLastPivotBar := iLast
+        zzLastPivotBar
+
+
+// =====================================================
+// 📈 EMA50 CORE (MASTER-GATED)
+// =====================================================
+ema50_raw = ta.ema(close, 50)
+ema50 = useEMA50 ? ema50_raw : na
+
+
+// =====================
+// EMA50 DISTANCE (%)
+// =====================
+ema50DistPct =
+     not na(ema50)
+     ? (close - ema50) / ema50 * 100
+     : na
+
+f_pct(x) =>
+    na(x) ? "N/A" : str.tostring(x, "#.##") + "%"
+
+
+
+
+
+// =====================================================
+// 📊 VOLUME MA50 (SHARED WITH EMA50 SPINE)
+// =====================================================
+volMA50 = ta.sma(volume, 50)
+
+
+// =====================================================
+// 🧠 ZZ MAJOR — TREND & CANDLE HELPERS (SINGLE SOURCE)
+// =====================================================
+
+// Trend state
+zzTrendBull = useEMA50 and close > ema50 and ema50 >= ema50[1]
+zzTrendBear = useEMA50 and close < ema50 and ema50 <= ema50[1]
+
+
+// Candle intent
+zzBullCandle = close > open
+zzBearCandle = close < open
+
+// Bull regime ONLY
+ema50Bull =
+     useEMA50 and
+     close > ema50 and
+     ema50 >= ema50[1]
+
+
+// Volume expansion
+volSpike50 = volume > volMA50 * 1.5
+
+// ZZ Major volume intent (alias)
+zzBullVolSpike = volSpike50
+
+
+// Candle bias
+bullCandle = close > open
+
+
+// =====================================================================
+// 🌊 ZZ MAJOR V2 — MASTER SAFE (TOGGLE-FIXED) | Pine v6
+// =====================================================================
+
+// -------------------------------------------------
+// 🔒 INTERNAL CALCS (LOCAL / NO COLLISION)
+// -------------------------------------------------
+zzm2_len  = 20
+zzm2_mult = 2.0
+
+zzm2_midBB   = ta.sma(close, zzm2_len)
+zzm2_dev     = zzm2_mult * ta.stdev(close, zzm2_len)
+zzm2_upperBB = zzm2_midBB + zzm2_dev
+zzm2_lowerBB = zzm2_midBB - zzm2_dev
+
+zzm2_mid2BB = (zzm2_midBB + zzm2_lowerBB) / 2.0
+zzm2_mid3BB = (zzm2_mid2BB + zzm2_lowerBB) / 2.0
+
+zzm2_wma5l = ta.wma(low, 5)
+zzm2_wma5h = ta.wma(high, 5)
+
+// -------------------------------------------------
+// 🟢 ENTRY — EARLY
+// -------------------------------------------------
+zzMajorV2Entry_raw = ta.crossover(zzm2_wma5l, zzm2_mid3BB)
+
+// -------------------------------------------------
+// 🔴 RED-X ZONE
+// -------------------------------------------------
+zzMajorV2RedX = zzm2_wma5h >= zzm2_upperBB and high >= zzm2_upperBB
+
+// -------------------------------------------------
+// 🧠 STATE MEMORY (V2 ONLY)
+// -------------------------------------------------
+var bool  zzMajorV2InTrade = false
+var float zzMajorV2Peak    = na
+
+zzMajorV2Entry = false
+zzMajorV2Exit  = false
+
+// -------------------------------------------------
+// 🟢 ENTRY STATE (V2 TOGGLE-GATED)
+// -------------------------------------------------
+if ZZ_ON and showZZMajorV2Signal and zzMajorV2Entry_raw and not zzMajorV2InTrade
+    zzMajorV2InTrade := true
+    zzMajorV2Peak    := na
+    zzMajorV2Entry   := true
+
+// -------------------------------------------------
+// 📈 TRACK HIGHEST HIGH DURING RED-X
+// -------------------------------------------------
+if zzMajorV2InTrade and zzMajorV2RedX
+    zzMajorV2Peak := na(zzMajorV2Peak) ? high : math.max(zzMajorV2Peak, high)
+
+// -------------------------------------------------
+// 🔴 EXIT — AFTER RED-X ENDS (HIGHEST X)
+// -------------------------------------------------
+if zzMajorV2InTrade and not zzMajorV2RedX and zzMajorV2RedX[1] and not na(zzMajorV2Peak)
+    zzMajorV2Exit    := true
+    zzMajorV2InTrade := false
+    zzMajorV2Peak    := na
+
+// =====================================================
+// 👁️ VISIBILITY (V2 TOGGLES — FIXED)
+// =====================================================
+zzMajorV2EntryVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Entry and zzMajorV2Entry
+
+zzMajorV2ExitVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Exit and zzMajorV2Exit
+
+// -------------------------------------------------
+// 🎯 PLOTS (ZZ MAJOR V2)
+// -------------------------------------------------
+plotshape(
+    zzMajorV2EntryVisible,
+    title = "ZZ Major V2 Entry",
+    text  = "entry",
+    style = shape.labelup,
+    location = location.belowbar,
+    color = color.purple,
+    textcolor = labelTextCol,
+    size = size.small,
+    force_overlay = true
+)
+
+plotshape(
+    zzMajorV2ExitVisible,
+    title = "ZZ Major V2 Exit (Highest X)",
+    text  = "exit",
+    style = shape.labeldown,
+    location = location.abovebar,
+    color = color.purple,
+    textcolor = labelTextCol,
+    size = size.small,
+    force_overlay = true
+)
+
+// =====================================================================
+// ✅ END — ZZ MAJOR V2 (TOGGLE SAFE)
+// =====================================================================
+
+// =====================
+// ZIGZAG LINE PLOT
+// =====================
+ZZPercent = input.float(0.5, title = 'Minimum % Change', step = 0.1, group = groupZZAdvanced)
+
+trend = 0
+trend := na(trend[1]) ? 1 : trend[1]
+LL = 0.0
+LL := na(LL[1]) ? low : LL[1]
+HH = 0.0
+HH := na(HH[1]) ? high : HH[1]
+
+PivotChg = ZZPercent * 0.01
+zigzag = float(na)
+
+if trend > 0 // trend is up, look for new swing low
+    if high >= HH // new higher high detected
+        HH := high
+        HH
+    else
+        if low < HH * (1 - PivotChg)
+            zigzag := high[1]
+            trend := -1
+            LL := low
+            LL
+else // trend is down, look for new swing high
+    if low <= LL // new lower low detected
+        LL := low
+        LL
+    else
+        if high > LL * (1 + PivotChg)
+            zigzag := low[1]
+            trend := 1
+            HH := high
+            HH
+
+// =====================
+// BULL / BEAR ARROW SWITCHES
+// =====================
+groupZZArrows = 'ZZTrade • Bull / Bear Arrows'
+
+showBullArrow = input.bool(true, 'Bull Arrow', group = groupZZArrows)
+showBearArrow = input.bool(true, 'Bear Arrow', group = groupZZArrows)
+
+BuRC = close > ((high + low) / 2)[1] and close > ((high + low) / 2)[2]
+BeRC = close < ((high + low) / 2)[1] and close < ((high + low) / 2)[2]
+
+// =====================
+// BULL / BEAR ARROWS (INDEPENDENT SWITCH)
+// =====================
+plotshape(ZZ_ON and zzMajorON and showBullArrow and BuRC, style = shape.arrowup, location = location.belowbar, color = colEntry, size = size.tiny, editable = true, force_overlay = true)
+
+plotshape(ZZ_ON and zzMajorON and showBearArrow and BeRC, style = shape.arrowdown, location = location.abovebar, color = colExit, size = size.tiny, editable = true, force_overlay = true)
+
+// =====================
+// PIVOT PRICE LABELS
+// =====================
+lenH = input.int(10, 'Length High')
+lenL = input.int(10, 'Length Low')
+
+drawPivot(src, len, isHigh, style, yloc_, col) =>
+    p = nz(src[len])
+    ok = true
+    for i = 0 to len - 1 by 1
+        if isHigh and src[i] > p or not isHigh and src[i] < p
+            ok := false
+            ok
+    for i = len + 1 to 2 * len by 1
+        if isHigh and src[i] >= p or not isHigh and src[i] <= p
+            ok := false
+            ok
+    if ZZ_ON and showAllSignals and ok and zzMajorON and showPivotPriceLabels
+        label.new(bar_index[len], p, str.tostring(p), style = style, yloc = yloc_, color = col, textcolor = labelTextCol, size = size.small, force_overlay = true)
+
+drawPivot(high, lenH, true, label.style_label_lower_right, yloc.abovebar, #ff0000)
+drawPivot(low, lenL, false, label.style_label_upper_right, yloc.belowbar, #00ff00)
+
+// =====================
+// SUPPORT / RESISTANCE LEVELS
+// =====================
+showRSLevels = input.bool(true, 'Auto Support and Resistant Levels', group = groupZZ)
+
+W1 = input(title = 'type1', defval = 8)
+W2 = input(title = 'type2', defval = 21)
+
+R1 = ta.valuewhen(high >= ta.highest(high, W1), high, 0)
+S1 = ta.valuewhen(low <= ta.lowest(low, W1), low, 0)
+R2 = ta.valuewhen(high >= ta.highest(high, W2), high, 0)
+S2 = ta.valuewhen(low <= ta.lowest(low, W2), low, 0)
+
+Res1 = plot(ZZ_ON and showRSLevels ? R1 : na, color = R1 != R1[1] ? na : #00ff00, editable = true, force_overlay = true)
+Sup1 = plot(ZZ_ON and showRSLevels ? S1 : na, color = S1 != S1[1] ? na : #ff0000, editable = true, force_overlay = true)
+Res2 = plot(ZZ_ON and showRSLevels ? R2 : na, color = R2 != R2[1] ? na : #00ff00, editable = true, force_overlay = true)
+Sup2 = plot(ZZ_ON and showRSLevels ? S2 : na, color = S2 != S2[1] ? na : #ff0000, editable = true, force_overlay = true)
+
+// =====================================================
+// 🌱 ZZ MINOR • TRUE PIVOT-TO-PIVOT WAVE (FAST)
+// =====================================================
+
+// --- Sensitivity (independent from ZZ Major)
+zzm_depth = math.max(2, math.floor(dalam / 3))
+
+// --- Detect minor pivots
+[zzm_iH, zzm_pH] = pivots(high, zzm_depth, true)
+[zzm_iL, zzm_pL] = pivots(low,  zzm_depth, false)
+
+// --- Pivot memory
+var int   zzm_lastBar   = na
+var float zzm_lastPrice = na
+
+// 1 = last pivot HIGH, 0 = last pivot LOW, -1 = none
+var int zzm_lastHigh = -1
+
+// --- Direction flip flags (used by signals)
+zzm_turnUp   = false
+zzm_turnDown = false
+
+// --- NEW MINOR HIGH PIVOT
+if not na(zzm_iH)
+    if zzm_lastHigh != 1
+        zzm_turnDown := true
+
+        if ZZ_ON and showZZMinorWave and not na(zzm_lastBar)
+            line.new(
+                zzm_lastBar,
+                zzm_lastPrice,
+                zzm_iH,
+                zzm_pH,
+                color = color.new(#00FF00, 0),
+                width = 1,
+                style = line.style_solid,
+                force_overlay = true
+            )
+
+        zzm_lastBar   := zzm_iH
+        zzm_lastPrice := zzm_pH
+        zzm_lastHigh  := 1
+
+// --- NEW MINOR LOW PIVOT
+if not na(zzm_iL)
+    if zzm_lastHigh != 0
+        zzm_turnUp := true
+
+        if ZZ_ON and showZZMinorWave and not na(zzm_lastBar)
+            line.new(
+                zzm_lastBar,
+                zzm_lastPrice,
+                zzm_iL,
+                zzm_pL,
+                color = color.new(#00FF00, 0),
+                width = 1,
+                style = line.style_solid,
+                force_overlay = true
+            )
+
+        zzm_lastBar   := zzm_iL
+        zzm_lastPrice := zzm_pL
+        zzm_lastHigh  := 0
+
+
+
+
+// =====================================================
+// 🌊 ZZ MINOR • ORIGINAL LEGACY ENGINE (UNTOUCHED)
+// =====================================================
+
+zzMinorEntry =
+     ZZ_ON and
+     showAllSignals and 
+     showZZMinorSignal and
+     zzm_turnUp
+
+zzMinorExit =
+     ZZ_ON and
+     showAllSignals and 
+     showZZMinorSignal and
+     zzm_turnDown
+
+zzMinorEntryVisible =
+     showAllSignals and zzMinorEntry and showZZMinorEntry
+
+zzMinorExitVisible =
+     showAllSignals and zzMinorExit and showZZMinorExit
+
+plotshape(
+    zzMinorEntryVisible,
+    title = "ZZ Minor Entry",
+    text = "entry",
+    style = shape.labelup,
+    location = location.belowbar,
+    color = color.new(color.yellow, 0),
+    textcolor = color.rgb(0, 0, 0),
+    size = size.tiny,
+    force_overlay = true
+)
+
+plotshape(
+    zzMinorExitVisible,
+    title = "ZZ Minor Exit",
+    text = "exit",
+    style = shape.labeldown,
+    location = location.abovebar,
+    color = color.new(color.yellow, 0),
+    textcolor = color.rgb(0, 0, 0),
+    size = size.tiny,
+    force_overlay = true
+)
+
+// =====================================================
+// 🎛️ E2So ENGINE (MOD – FULL SYSTEM, TOGGLE SAFE)
+// =====================================================
+groupE2So = '🎛️ E2So Settings (MOD)'
+
+// ---- MASTER TOGGLE GATE ----
+E2So_ON = e2soDD_ON
+
+/////////////////////////////////////////////////////
+// DISPLAY TOGGLES
+/////////////////////////////////////////////////////
+showEntry = input.bool(true, 'E2So Entry', group = groupE2So)
+showReEntry = input.bool(true, 'E2So Re-entry', group = groupE2So)
+showExit = input.bool(true, 'E2So Exit', group = groupE2So)
+showBG = input.bool(true, 'E2So Background Highlight', group = groupE2So)
+showBarColor = input.bool(true, 'Color Entry Bar', group = groupE2So)
+
+/////////////////////////////////////////////////////
+// MIDLINES DISPLAY SETTINGS
+/////////////////////////////////////////////////////
+showBBMid = input.bool(true, 'E2So BB Midline', group = groupE2So)
+showDCMid = input.bool(true, 'E2So Donchian Midline', group = groupE2So)
+showAvgMid = input.bool(true, 'E2So BB + DC Average Line', group = groupE2So)
+
+bbMidColor = input.color(color.fuchsia, 'BB Midline Color', group = groupE2So)
+dcMidColor = input.color(color.orange, 'Donchian Midline Color', group = groupE2So)
+avgMidColor = input.color(color.white, 'Average Line Color', group = groupE2So)
+
+midLineWidth = input.int(1, 'Midline Width', minval = 1, maxval = 5, group = groupE2So)
+
+/////////////////////////////////////////////////////
+// BOLLINGER BAND
+/////////////////////////////////////////////////////
+lengthBB = input.int(20, minval = 1, group = groupE2So)
+mult = input.float(2.0, minval = 0.001, maxval = 50, group = groupE2So)
+
+midBB2 = ta.sma(close, lengthBB)
+devBB2 = mult * ta.stdev(close, lengthBB)
+upperBB = midBB2 + devBB2
+lowerBB = midBB2 - devBB2
+
+/////////////////////////////////////////////////////
+// DONCHIAN CHANNEL MIDLINE
+/////////////////////////////////////////////////////
+dcHighLen = input.int(20, 'Donchian High Length', group = groupE2So)
+dcLowLen = input.int(20, 'Donchian Low Length', group = groupE2So)
+
+dcUpper = ta.highest(high, dcHighLen)
+dcLower = ta.lowest(low, dcLowLen)
+dcMid2 = math.avg(dcUpper, dcLower)
+
+/////////////////////////////////////////////////////
+// BB + DC AVERAGE MIDLINE
+/////////////////////////////////////////////////////
+avgMid = math.avg(midBB2, dcMid2)
+
+/////////////////////////////////////////////////////
+// MIDLINE PLOTS (ENGINE-GATED)
+/////////////////////////////////////////////////////
+plot(ZZ_ON and showAllSignals and E2So_ON and showBBMid ? midBB2 : na, 'BB Mid', bbMidColor, math.max(1, midLineWidth), editable = true, force_overlay = true)
+plot(ZZ_ON and showAllSignals and E2So_ON and showDCMid ? dcMid2 : na, 'DC Mid', dcMidColor, math.max(1, midLineWidth), editable = true, force_overlay = true)
+plot(ZZ_ON and showAllSignals and E2So_ON and showAvgMid ? avgMid : na, 'AVG Mid', avgMidColor, math.max(1, midLineWidth), editable = true, force_overlay = true)
+
+/////////////////////////////////////////////////////
+// STOCH RSI (EXIT FILTER)
+/////////////////////////////////////////////////////
+smoothK = input.int(3, group = groupE2So)
+smoothD = input.int(3, group = groupE2So)
+lengthRSI = input.int(14, group = groupE2So)
+lengthStoch = input.int(14, group = groupE2So)
+
+rsiBase = ta.rsi(close, lengthRSI)
+k = ta.sma(ta.stoch(rsiBase, rsiBase, rsiBase, lengthStoch), smoothK)
+d = ta.sma(k, smoothD)
+
+exitStoch = ta.crossunder(k, d) and k > 70 and d > 70
+
+/////////////////////////////////////////////////////
+// CCI
+/////////////////////////////////////////////////////
+lengthCCI = input.int(20, group = groupE2So)
+cciMA = ta.sma(close, lengthCCI)
+cci = (close - cciMA) / (0.015 * ta.dev(close, lengthCCI))
+exitCCI = cci > 200 and exitStoch
+
+/////////////////////////////////////////////////////
+// MACD CORE
+/////////////////////////////////////////////////////
+fastMA = ta.ema(close, 12)
+slowMA = ta.ema(close, 26)
+macd2 = fastMA - slowMA
+signal = ta.ema(macd2, 9)
+hist2 = macd2 - signal
+
+/////////////////////////////////////////////////////
+// MOMENTUM & AO
+/////////////////////////////////////////////////////
+mom2 = close - close[10]
+ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+
+////////////////////////////////////////
+///////////volume MA 20 ////////////////
+////////////////////////////////////////
+volLenE2So = 20
+volMA20E2So = ta.sma(volume, volLenE2So)
+
+volWeak = volume < volMA20E2So
+volMedium = volume >= volMA20E2So and volume < volMA20E2So * 1.5
+volStrong = volume >= volMA20E2So * 1.5
+
+volStrength = volStrong ? 'STRONG' : volMedium ? 'MEDIUM' : 'WEAK'
+
+bullishCandle = close > open
+bearishCandle = close < open
+
+volBias = volStrong and bullishCandle ? 'STRONG BULLISH' : volMedium and bullishCandle ? 'BULLISH' : volStrong and bearishCandle ? 'STRONG BEARISH' : volMedium and bearishCandle ? 'BEARISH' : 'NEUTRAL / WEAK'
+// =====================
+// 📊 VOLUME EMOJI
+// =====================
+volEmoji = volStrong ? '🟢' : volMedium ? '🟡' : '🔴'
+
+// =====================
+// 📊 MOMENTUM SCORE (0–100)
+// =====================
+bullScore = 0
+
+bullScore := bullScore + (volStrong ? 40 : volMedium ? 20 : 0)
+bullScore := bullScore + (bullishCandle ? 20 : 0)
+bullScore := bullScore + (macd2 > signal ? 20 : 0)
+bullScore := bullScore + (ta.rsi(close, 14) > 50 ? 20 : 0)
+
+bearScore = 100 - bullScore
+
+momentumScore = bullScore >= 80 ? str.tostring(bullScore) + '/100 🔥' : bullScore >= 60 ? str.tostring(bullScore) + '/100 ✅' : bullScore >= 40 ? str.tostring(bullScore) + '/100 ⚠️' : str.tostring(bullScore) + '/100 ❌'
+// =====================
+// 🐂🐻 BULL / BEAR LEVEL
+// =====================
+string bullBearLevel = 'NEUTRAL'
+
+if bullScore >= 80
+    bullBearLevel := 'STRONG BULL'
+else if bullScore >= 60
+    bullBearLevel := 'BULL'
+else if bullScore <= 20
+    bullBearLevel := 'STRONG BEAR'
+else if bullScore <= 40
+    bullBearLevel := 'BEAR'
+else
+    bullBearLevel := 'NEUTRAL'
+
+
+// =====================================================
+// 📊 CONTEXT INDICATORS (ALERT-ONLY, NON-GATING)
+// =====================================================
+
+// =====================
+// 📊 PVI (Normalized)
+// =====================
+var float pvi = 100.0
+
+if volume > volume[1] and close[1] != 0
+    pvi := pvi + ((close - close[1]) / close[1]) * pvi
+else
+    pvi := pvi
+
+pviLow  = ta.lowest(pvi, 20)
+pviHigh = ta.highest(pvi, 20)
+pviNorm = pviHigh != pviLow ? 100 * (pvi - pviLow) / (pviHigh - pviLow) : 50
+
+pviStatus =
+     pviNorm > 70 ? "PVI > 70 (Strong)" :
+     pviNorm > 50 ? "PVI > 50 (Bullish)" :
+     pviNorm < 30 ? "PVI < 30 (Weak)" :
+     "PVI < 50 (Bearish)"
+
+
+// =====================
+// 📊 OBV (v6 SAFE)
+// =====================
+obv = ta.cum(volume * math.sign(close - close[1]))
+obvMA20 = ta.sma(obv, 20)
+
+
+obvStatus =
+     obv > obvMA20 ? "OBV > MA20 (Accumulation)" :
+     "OBV < MA20 (Distribution)"
+
+
+// =====================
+// 📊 OSOB STATE (using bullScore)
+// =====================
+osobStatus =
+     bullScore >= 80 ? "OSOB: Overbought" :
+     bullScore <= 20 ? "OSOB: Oversold" :
+     bullScore > 50 ? "OSOB: Above 50" :
+     "OSOB: Below 50"
+
+
+// =====================
+// 🟦 IBO VOLUME BASE (EARLY DECLARATION)
+// =====================
+volMaLen   = 20
+volMAIBO   = ta.sma(volume, volMaLen)
+
+// =====================================================
+// 🧠 EZP ALERTS — RAW CONDITIONS (PARSER SAFE v6)
+// =====================================================
+
+// ---------- IBO (Intraday Breakout)
+iboHigh_EZP = ta.highest(high, 1)
+iboHighPrev = iboHigh_EZP[1]
+ezpIBO = high > iboHighPrev
+// =====================
+// 🟦 IBO RAW BREAKOUT (EARLY)
+// =====================
+iboRawBreakout =
+     showAllSignals and 
+     iboDD_ON and
+     ezpIBO and
+     volume > volMAIBO
+
+
+// ---------- VolBO (Volume Breakout)
+volboHigh_EZP = ta.highest(volume, 20)
+volboHighPrev = volboHigh_EZP[1]
+ezpVolBO = volume > volboHighPrev
+
+
+// ---------- VolSpike (5m / intraday proxy)
+volMA20_EZP = ta.sma(volume, 20)
+volSpikeLvl = volMA20_EZP * 1.5
+ezpVolSpike = volume > volSpikeLvl
+
+// ---------- MACD Breakout
+macdHigh_EZP = ta.highest(macd2, 20)
+macdHighPrev = macdHigh_EZP[1]
+ezpMACDBO = macd2 > macdHighPrev
+
+// ---------- Trend (Structure / Direction)
+ema20_EZP = ta.ema(close, 20)
+ema50_EZP = ta.ema(close, 50)
+ezpTrend = close > ema20_EZP and ema20_EZP > ema50_EZP
+// =====================
+// EMA20 + EMA50 DISTANCE (%)
+// =====================
+
+// EMA20 distance (%)
+// using EXISTING ema20_EZP
+ema20DistPct =
+     not na(ema20_EZP)
+     ? (close - ema20_EZP) / ema20_EZP * 100
+     : na
+
+// Combined distance (%)
+emaComboDistPct =
+     not na(ema20DistPct) and not na(ema50DistPct)
+     ? (ema20DistPct + ema50DistPct) / 2
+     : na
+// =====================================================
+// 🧭 EMA50 ZONE LABEL
+// =====================================================    
+ema50Zone =
+     ema50DistPct > 3   ? "EXTENDED" :
+     ema50DistPct > 0   ? "ABOVE EMA50" :
+     ema50DistPct > -1  ? "NEAR EMA50" :
+     "BELOW EMA50"
+// =====================
+// 🧭 EMA20 ZONE LABEL
+// =====================
+ema20Zone =
+     ema20DistPct > 3   ? "EXTENDED" :
+     ema20DistPct > 0   ? "ABOVE EMA20" :
+     ema20DistPct > -1  ? "NEAR EMA20" :
+     "BELOW EMA20"
+
+// =====================
+// EMA COMBO ZONE LABEL
+// =====================
+emaComboZone =
+     emaComboDistPct > 4    ? "🚨 OVEREXTENDED" :
+     emaComboDistPct > 2    ? "⚠️ EXTENDED" :
+     emaComboDistPct > 0.5  ? "✅ HEALTHY TREND" :
+     emaComboDistPct > -0.5 ? "🟡 NEAR EMA ZONE" :
+     "🔴 BELOW EMA"
+     // =====================
+
+
+// =====================================================
+// 📈 IBO STRUCTURE (EARLY BREAKOUT SAFE)
+// =====================================================
+iboStructureOK =
+     close > ema20_EZP
+
+
+// ---------- Strong close (Close Strength)
+StrongClose = high - (high - low) * 0.25
+ezpStrongClose = close > open and close > StrongClose and volume > volMA20_EZP
+
+// ---------- ShortSwing (Intraday continuation)
+macdBull = macd2 > signal
+scoreOK  = bullScore >= 60
+
+ezpShortSwing = macdBull and scoreOK and ezpVolSpike
+// =====================================================
+// 📈 IBO MOMENTUM FLIP
+// =====================================================
+iboMomentumBull = macd2 > signal
+// =====================================================
+// 📈 IBO MOMENTUM EXPANSION
+// =====================================================
+iboMomentumExpand = macd2 > macd2[1]
+
+// Combined momentum condition
+iboMomentumOK = iboMomentumBull
+
+// =====================================================
+// 🌙 BTST SESSION WINDOWS (MARKET-AWARE)
+// =====================================================
+
+// 🇲🇾 BURSA (MY time)
+bursaMorning = not na(time(timeframe.period, "0900-1200", "Asia/Kuala_Lumpur"))
+bursaEvening = not na(time(timeframe.period, "1600-1700", "Asia/Kuala_Lumpur"))
+
+// 🇺🇸 US (MY time, mapped from NYSE)
+// US Open: 22:30 – 02:00
+// US Power Hour (BTST build): 03:30 – 04:00
+usMorning =
+     not na(time(timeframe.period, "2230-2359", "Asia/Kuala_Lumpur")) or
+     not na(time(timeframe.period, "0000-0200", "Asia/Kuala_Lumpur"))
+
+usEvening =
+     not na(time(timeframe.period, "0330-0400", "Asia/Kuala_Lumpur"))
+
+// 🔀 Market-aware routing
+btstMorning = isBursa ? bursaMorning : isUS ? usMorning : false
+btstEvening = isBursa ? bursaEvening : isUS ? usEvening : false
+
+// =====================================================
+// BTST_PRO (Buy Today Sell Tomorrow — Session Structure)
+// =====================================================
+
+// --- Bursa US session flags (Pine v6 SAFE)
+isMorning = btstMorning
+isEvening = btstEvening
+
+
+// --- Morning structure memory
+var float btstMorningHigh   = na
+var float btstMorningMaxVol = na
+
+// --- Detect new trading day (FIXED: boolean)
+bool newDay = ta.change(time("D")) != 0
+
+// --- Reset on new day (NO if)
+btstMorningHigh   := newDay ? na : btstMorningHigh
+btstMorningMaxVol := newDay ? na : btstMorningMaxVol
+
+// --- Capture morning reference (NO if)
+btstMorningHigh :=
+     isMorning
+     ? (na(btstMorningHigh) ? high : math.max(btstMorningHigh, high))
+     : btstMorningHigh
+
+btstMorningMaxVol :=
+     isMorning
+     ? (na(btstMorningMaxVol) ? volume : math.max(btstMorningMaxVol, volume))
+     : btstMorningMaxVol
+
+// --- BTST conditions (evening only)
+btstPriceAccept = not na(btstMorningHigh)   and close  > btstMorningHigh
+btstVolDominant = not na(btstMorningMaxVol) and volume > btstMorningMaxVol
+btstBuyPressure = bullScore >= 51
+
+// --- FINAL BTST_PRO CONDITION
+ezpBTST_PRO =
+     showAllSignals and 
+     (isBursa or isUS) and
+     isEvening and
+     btstPriceAccept and
+     btstVolDominant and
+     btstBuyPressure
+
+var float btstEntryPrice = na
+
+if ezpBTST_PRO
+    btstEntryPrice := close
+
+
+
+// =====================================================
+// 🌅 BTST_PRO — NEXT DAY GAP CONFIRMATION
+// =====================================================
+
+// --- Detect next trading day
+bool isNextDay = ta.change(time("D")) != 0
+
+// --- Previous day close (locked)
+btstPrevClose = ta.valuewhen(isNextDay, close[1], 0)
+
+// --- Gap-up condition
+btstGapUp = open >= btstPrevClose
+
+// --- Price acceptance (early session hold)
+btstAccept =
+     close >= btstPrevClose and
+     low   >= btstPrevClose
+
+// --- Volume confirmation (early strength)
+btstVolConfirm = volume >= volMA20E2So
+
+// --- FINAL GAP CONFIRMATION
+ezpBTST_GAP_OK =
+     showAllSignals and 
+     ezpBTST_PRO[1] and   // yesterday was BTST
+     isNextDay and
+     btstGapUp and
+     btstAccept and
+     btstVolConfirm
+
+// =====================================================
+// BTST_PRO VISUAL MARKER (4–5 PM ONLY)
+// =====================================================
+plotshape(
+     ZZ_ON and showBTST_PRO and ezpBTST_PRO,
+     title     = "BTST_PRO Setup",
+     style     = shape.labelup,
+     location  = location.belowbar,
+     text      = "BTST",
+     size      = size.small,
+     color     = color.new(color.purple, 0),
+     textcolor = color.white,
+     force_overlay = true
+)
+// =====================================================
+// BTST_PRO STRENGTH TIER
+// =====================================================
+string btstTier = "NONE"
+
+btstTier :=
+     ezpBTST_PRO and bullScore >= 75 and volume >= btstMorningMaxVol * 1.5 and ezpStrongClose ? "HIGH" :
+     ezpBTST_PRO and bullScore >= 65 and volume >= btstMorningMaxVol * 1.2 ? "MID"  :
+     ezpBTST_PRO ? "LOW" :
+     "NONE"
+
+
+
+// =====================================================
+// 🔢 EZP SCORE ENGINE (0–100) — STEP 2
+// =====================================================
+ezpScore = 0
+
+ezpScore += ezpIBO          ? 15 : 0
+ezpScore += ezpVolBO        ? 15 : 0
+ezpScore += ezpVolSpike     ? 15 : 0
+ezpScore += ezpMACDBO       ? 15 : 0
+ezpScore += ezpTrend        ? 20 : 0
+ezpScore += ezpShortSwing   ? 20 : 0
+ezpScore += ezpStrongClose  ? 25 : 0
+
+// Clamp safety
+ezpScore := ezpScore > 100 ? 100 : ezpScore
+// =====================================================
+// ⭐ EZP RATING
+// =====================================================
+ezpRating =
+     ezpScore >= 85 ? "🌟 EZP SUPERSTOCK" :
+     ezpScore >= 70 ? "🔥 EZP STRONG" :
+     ezpScore >= 55 ? "✅ EZP VALID" :
+     "⚠️ EZP WEAK"
+
+// =====================================================
+// BTST_PRO → EZP SCORE BONUS
+// =====================================================
+btstBonus =
+     btstTier == "HIGH" ? 15 :
+     btstTier == "MID"  ? 10 :
+     btstTier == "LOW"  ? 5  :
+     0
+
+ezpScore := math.min(100, ezpScore + btstBonus)
+// =====================
+// UTC / DTC CORE
+// =====================
+ema10 = ta.ema(close, 10)
+// ---- UTC / DTC crosses ----
+utcBuy  = ta.crossover(ema10, ema50)     // UTC
+dtcSell = ta.crossunder(ema10, ema50)    // DTC
+
+
+
+// =====================================================
+// 🟦 S.UTC ZONE SCORE (ISOLATED, TABLE-READY)
+// =====================================================
+
+// --- Zone state
+utcBullZone = ema10 > ema50
+utcBearZone = ema10 < ema50
+
+// --- Zone energy (width)
+utcZoneWidth = math.abs((ema10 + ao) - (ema50 - ao))
+
+// --- Persistent trackers
+var float utcBullMaxWidth = 0.0
+var float utcBearMaxWidth = 0.0
+var int   utcBullBars = 0
+var int   utcBearBars = 0
+
+// --- Bull tracking
+if utcBullZone
+    utcBullBars += 1
+    utcBullMaxWidth := math.max(utcBullMaxWidth, utcZoneWidth)
+else
+    utcBullBars := 0
+    utcBullMaxWidth := 0
+
+// --- Bear tracking
+if utcBearZone
+    utcBearBars += 1
+    utcBearMaxWidth := math.max(utcBearMaxWidth, utcZoneWidth)
+else
+    utcBearBars := 0
+    utcBearMaxWidth := 0
+
+// --- Normalize scores (0–100)
+utcBullWidthScore = math.min(100, utcBullMaxWidth * 100)
+utcBearWidthScore = math.min(100, utcBearMaxWidth * 100)
+
+utcBullDurationScore = math.min(100, utcBullBars * 5)
+utcBearDurationScore = math.min(100, utcBearBars * 5)
+
+// --- Final weighted score
+utcBullScore = math.round(utcBullWidthScore * 0.6 + utcBullDurationScore * 0.4)
+utcBearScore = math.round(utcBearWidthScore * 0.6 + utcBearDurationScore * 0.4)
+
+
+// =====================
+// 📌 SCORE SNAPSHOT AT SIGNAL
+// =====================
+var float utcBullScore_atTrigger = na
+var float utcBearScore_atTrigger = na
+utcBullScore_atTrigger := utcBullScore
+utcBearScore_atTrigger := utcBearScore
+// =====================
+// 🧠 UTC / DTC ZONE MOMENTUM (PEAK-AWARE)
+// =====================
+
+// Smooth width to reduce noise
+utcWidthEMA = ta.ema(utcZoneWidth, 5)
+
+// Width change (slope)
+utcWidthDelta = utcWidthEMA - utcWidthEMA[1]
+
+// Threshold to ignore noise
+widthEps = utcZoneWidth * 0.02
+// =====================
+// 📈 ZONE STATE (LOGICAL, NOT HISTORICAL)
+// =====================
+
+utcBullState =
+     not utcBullZone ? "—" :
+     utcWidthDelta >  widthEps  ? "▲ Expanding" :
+     utcWidthDelta < -widthEps  ? "▼ Narrowing" :
+                                 "→ Flat"
+
+dtcBearState =
+     not utcBearZone ? "—" :
+     utcWidthDelta < -widthEps  ? "▲ Narrowing" :  // selling pressure expanding
+     utcWidthDelta >  widthEps  ? "▼ Expanding" :  // recovery / compression
+                                 "→ Flat"
+
+utcBullPctTxt = str.tostring(utcBullScore_atTrigger) + "%"
+dtcBearPctTxt = str.tostring(utcBearScore_atTrigger) + "%"
+
+// =====================
+// 🟢 UTC PRE-BULL CONFIRMATION (SAFE)
+// =====================
+
+// Structural condition (still below EMA50 but improving)
+utcStructurePreBull =
+     ema10 < ema50 and
+     ema10 > ema10[1]
+
+// Zone behavior (bear zone losing power)
+utcBearWeakening =
+     utcBearZone and
+     utcBearScore < 60 and
+     utcWidthDelta > 0   // narrowing bear pressure
+
+// Momentum confirmation (existing logic, reused)
+utcMomentumOK =
+     ta.crossover(macd2, signal) and
+     hist2 > 0 and
+     mom2 > ao
+
+// ---- UTC Entry ----
+utcEntry =
+     ta.crossover(macd2, signal) and
+     hist2 > 0 and
+     mom2 > ao and
+     ema10 < ema50 and
+     ema10 > ema10[1] and
+     utcBearZone and
+     utcBearScore < 60 and
+     utcWidthDelta > 0
+
+
+
+// ---- UTC ReEntry ----
+utcReentry =
+     ta.crossover(macd2, signal) and
+     macd2 > 0 and
+     hist2 > 0 and
+     mom2 > ao and
+     ta.rsi(close, 14) > 50
+
+
+
+/////////////////////////////////////////////////////
+// ENTRY / RE-ENTRY / EXIT E2So
+/////////////////////////////////////////////////////
+entry = showAllSignals and E2So_ON and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20E2So
+reentry = showAllSignals and E2So_ON and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20E2So
+
+exitSignal = showAllSignals and E2So_ON and (exitCCI or high >= upperBB and exitStoch)
+
+// =====================
+// 📈 E2So TREND VALIDATION
+// =====================
+trendStillValid =
+     E2So_ON and
+     ema20_EZP > ema50 and        // trend structure intact
+     macd2 > signal and           // momentum still bullish
+     hist2 > 0                    // no bearish momentum flip
+
+// =====================
+// 🔄 E2So PULLBACK CONDITION
+// =====================
+pullbackCond =
+     close < avgMid and           // price pulled below mid
+     close > ema50 and            // but still above EMA50
+     hist2 < hist2[1]             // momentum cooling
+
+// =====================
+// 🔒 E2So ENTRY LOCK (ALERT SAFE)
+// =====================
+var bool e2soEntryLocked   = false
+var bool e2soReentryLocked = false
+
+
+
+/////////////////////////////////////////////////////
+// SIGNAL PLOTS
+/////////////////////////////////////////////////////
+plotshape(ZZ_ON and showE2So and showEntry and entry, 'E2So Entry', shape.labelup, location.belowbar, color.white, text = 'entry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true, editable = true)
+plotshape(ZZ_ON and showE2So and showReEntry and reentry, 'E2So ReEntry', shape.labelup, location.belowbar, color.white, text = 'reentry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
+plotshape(ZZ_ON and showE2So and showExit and exitSignal, 'E2So Exit', shape.labeldown, location.abovebar, color.white, text = 'exit', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
+
+/////////////////////////////////////////////////////
+// VISUAL EFFECTS
+/////////////////////////////////////////////////////
+bgcolor(ZZ_ON and showBG and entry ? bgEntryCol : na)
+bgcolor(ZZ_ON and showBG and reentry ? bgEntryCol : na)
+bgcolor(ZZ_ON and showBG and exitSignal ? bgExitCol : na)
+barcolor(ZZ_ON and showBarColor and entry ? barEntryCol : na)
+
+// =====================
+// ⚙️ E2Su SETTINGS
+// =====================
+groupE2Su = '📈 E2Su Controls'
+showExit1 = input.bool(true, 'Exit Signal', group = groupE2Su)
+
+// =====================================================
+// 👑 RBB ENGINE (TREND AUTHORITY)
+// =====================================================
+lengthRBB = input.int(20, 'RBB Length', group = groupE2Su)
+multRBB   = input.float(1.0, 'RBB Deviation Mult', group = groupE2Su)
+
+midBB_E2Su = ta.sma(close, lengthRBB)
+devBB_E2Su = multRBB * ta.stdev(close, lengthRBB)
+rbbOsc_E2Su = (close - midBB_E2Su) / devBB_E2Su * 100
+
+// =====================================================
+// 🔐 STATE MEMORY
+// =====================================================
+var bool e2suInTrade   = false
+var bool e2suReUsed   = false
+
+// Reset when trend dies
+if rbbOsc_E2Su < -100
+    e2suInTrade := false
+    e2suReUsed  := false
+
+var bool e2suEntryLocked = false
+
+// =====================================================
+// 🟢 ENTRY LOGIC (CONFIRMED BY YOU)
+// =====================================================
+e2suEntry =
+     showAllSignals and 
+     e2suDD_ON and
+     ta.crossover(macd2, signal) and
+     rbbOsc_E2Su > -100 and
+     not e2suInTrade
+
+// Optional single re-entry
+e2suReEntry =
+     showAllSignals and 
+     e2suDD_ON and
+     ta.crossover(macd2, signal) and
+     rbbOsc_E2Su > 0 and
+     not e2suInTrade and
+     not e2suReUsed
+
+if e2suEntry
+    e2suInTrade := true
+
+if e2suReEntry
+    e2suInTrade := true
+    e2suReUsed  := true
+
+// =====================================================
+// 🔴 EXIT LOGIC (REFINED & APPROVED)
+// =====================================================
+softExit =
+     ta.crossunder(macd2, signal) and rbbOsc_E2Su > 0
+
+hardExit =
+     ta.crossunder(rbbOsc_E2Su, -100)
+
+// 🔴 EXIT LOGIC (FIXED ORDER)
+e2suExit =
+     showAllSignals and 
+     e2suDD_ON and
+     e2suInTrade and
+     (softExit or hardExit)
+
+if e2suExit
+    e2suInTrade := false
+    e2suEntryLocked := false
+
+
+// =====================================================
+// 🖊️ VISUAL SIGNALS (FORCE OVERLAY)
+// =====================================================
+plotshape(
+    ZZ_ON and e2suEntry,
+    title = 'E2Su Entry',
+    text = 'entry',
+    style = shape.labelup,
+    location = location.belowbar,
+    color = color.rgb(5, 86, 47),
+    textcolor = color.white,
+    size = size.small,
+    force_overlay = true
+)
+
+plotshape(
+    ZZ_ON and e2suExit and showExit1,
+    title = 'E2Su Exit',
+    text = 'exit',
+    style = shape.labeldown,
+    location = location.abovebar,
+    color = color.rgb(5, 86, 47),
+    textcolor = color.white,
+    size = size.small,
+    force_overlay = true
+)
+
+
+
+
+// =====================================================
+// 🧠 IBO PRO REFINEMENT (STRUCTURE + MOMENTUM)
+// =====================================================
+iboProFilter =
+     iboStructureOK and
+     iboMomentumOK
+
+/// =====================================================
+// 📈 IBO ENGINE : EMA6 / EMA18 (Enhanced)
+// =====================================================
+
+// --- Fixed Parameters
+emaFastLen = 6
+emaSlowLen = 18
+
+// --- EMA
+ema6 = ta.ema(close, emaFastLen)
+ema18 = ta.ema(close, emaSlowLen)
+// --- EMA slope (optional exit filter)
+ema6SlopeDown = ema6 < ema6[1]
+ema6Weak = ema6 <= ema6[1]
+
+// --- MACD
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+macdWeak = macdLine < signalLine or ta.crossunder(macdLine, signalLine)
+// =====================
+// 🔴 SHARED EXIT CORE (E2Su / IBO)
+// =====================
+macdBearishIBO = ta.crossunder(macdLine, signalLine)
+lowVolumeIBO  = volume < volMAIBO
+
+// --- Price Change (% from previous close)
+priceChangePct = (open - close[1]) / close[1] * 100
+
+// =====================
+// 🟦 IBO CONFIRMATION
+// =====================
+iboConfirm =
+     ema6 > ema18 and
+     macdLine > signalLine
+
+// =====================
+// 🟦 FINAL IBO ENTRY (FIXED)
+// =====================
+iboEntry =
+     showAllSignals and 
+     iboRawBreakout and
+     iboStructureOK and
+     iboMomentumOK and
+     iboConfirm
+
+// --- Exit Logic
+// --- Candle body size (%)
+bodyPct = math.abs(close - open) / close[1] * 100
+
+iboExit =
+     showAllSignals and 
+     iboDD_ON and
+     macdBearishIBO and
+     lowVolumeIBO and macdLine > 0
+
+// bearish candle
+// break EMA6
+// bullish regime rollover
+// strong red candle
+// =====================================================
+// 📊 PLOTS (IBO ENGINE ONLY) EMA6 and EMA18
+// =====================================================
+plot(ZZ_ON and showAllSignals and iboDD_ON ? ema6 : na, title = 'IBO EMA6', color = color.yellow, style = plot.style_line, linewidth = 2, force_overlay = true, editable = true)
+plot(ZZ_ON and showAllSignals and iboDD_ON ? ema18 : na, title = 'IBO EMA18', color = color.blue, style = plot.style_line, linewidth = 2, force_overlay = true, editable = true)
+
+// =====================================================
+// 🔔 ENTRY / EXIT SIGNALS LABELS
+// =====================================================
+plotshape(ZZ_ON and iboDD_ON and iboEntry, title = 'IBO Entry', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
+
+plotshape(ZZ_ON and iboDD_ON and iboExit, title = 'IBO Exit', text = 'exit', style = shape.labeldown, location = location.abovebar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
+
+plot(ZZ_ON and showAllSignals and useEMA50 and (e2suDD_ON or iboDD_ON) ? ema50 : na,title = 'EMA 50',color = color.white,linewidth = 2,force_overlay = true)
+
+// =====================================================
+// 🌊 EWsub ENTRY / EXIT LOGIC
+// =====================================================
+ewEntry =
+     showAllSignals and 
+     ewSignal_ON and
+     showEWEntry and
+     trend == 1 and
+     not na(zigzag)
+
+ewExit =
+     showAllSignals and 
+     ewSignal_ON and
+     showEWExit and
+     trend == -1 and
+     not na(zigzag)
+
+
+
+// =====================================================
+// 🌊 EW SUBWAVE LINE
+// =====================================================
+plot(
+    ZZ_ON and ewLine_ON ? zigzag : na,
+    title = 'EW Subwave',
+    color = color.new(color.yellow, 0),
+    linewidth = 1,
+    offset = -1,
+    force_overlay = true
+)
+
+// =====================================================
+// 🌊 EW ENTRY / EXIT LABELS
+// =====================================================
+if ZZ_ON and ewEntry
+    label.new(bar_index, zigzag, 'entry', style = label.style_label_up, size = size.small, textcolor = color.rgb(0, 0, 0), color = color.new(color.lime, 0), force_overlay = true)
+
+if ZZ_ON and ewExit
+    label.new(bar_index, zigzag, 'exit', style = label.style_label_down, size = size.small, textcolor = color.rgb(0, 0, 0), color = color.new(color.lime, 0), force_overlay = true)
+
+// ==================================================
+// 🔌 SLAVE : BURSA / US / FCPO (SESSION MARKERS)
+// ==================================================
+groupSessionSlave = '🔌 Session Markers (Bursa / US / FCPO)'
+
+// FINAL GATE (MASTER ➜ SLAVE)
+SESSION_ON = ZZ_MASTER_ON and SESSION_SLAVE_ON
+
+// ==================================================
+// 📍 AUTO SESSION LABEL (ALERT USE ONLY)
+// ==================================================
+
+string sessionLabel = 'Outside Session'
+tz = 'Asia/Kuala_Lumpur'
+// 🇲🇾 BURSA
+if market == 'Bursa'
+    if hour(time, tz) >= 9 and hour(time, tz) < 12
+        sessionLabel := 'BURSA Morning'
+        sessionLabel
+    else if hour(time, tz) >= 14 and hour(time, tz) < 17
+        sessionLabel := 'BURSA Afternoon'
+        sessionLabel
+    else
+        sessionLabel := 'BURSA Outside'
+        sessionLabel
+
+// 🇺🇸 US (MY Time)
+if market == 'US'
+    if hour(time, tz) >= 22 or hour(time, tz) < 2
+        sessionLabel := 'US Open'
+        sessionLabel
+    else if hour(time, tz) >= 2 and hour(time, tz) < 5
+        sessionLabel := 'US Reopen'
+        sessionLabel
+    else
+        sessionLabel := 'US Outside'
+        sessionLabel
+
+// 🌴 FCPO
+if market == 'FCPO'
+    if hour(time, tz) >= 10 and hour(time, tz) < 12
+        sessionLabel := 'FCPO Morning'
+        sessionLabel
+    else if hour(time, tz) >= 14 and hour(time, tz) < 18
+        sessionLabel := 'FCPO Afternoon'
+        sessionLabel
+    else if hour(time, tz) >= 21
+        sessionLabel := 'FCPO Night'
+        sessionLabel
+    else
+        sessionLabel := 'FCPO Outside'
+        sessionLabel
+
+
+
+// ==================================================
+// ⚙️ COMMON SETTINGS
+// ==================================================
+daysToShow = input.int(3, 'Show Last N Days', group = groupSessionSlave)
+lw = input.int(1, 'Line Width', minval = 1, group = groupSessionSlave)
+lb = input.int(200, 'Lookback', minval = 50, group = groupSessionSlave)
+
+
+// =====================================================
+// 🏷️ EZP TAG COMPOSER
+// =====================================================
+ezpTags = ""
+
+ezpTags += ezpIBO               ? "#IBO "        : ""
+ezpTags += ezpVolBO             ? "#VolBO "      : ""
+ezpTags += ezpVolSpike          ? "#VolSpike "   : ""
+ezpTags += ezpMACDBO            ? "#MACDBO "     : ""
+ezpTags += ezpTrend             ? "#Trend "      : ""
+ezpTags += ezpStrongClose       ? "#StrongClose ": ""
+ezpTags += ezpShortSwing        ? "#ShortSwing " : ""
+ezpTags += iboProFilter         ? "#IBO_PRO "    : ""
+// --- BTST_PRO TAGS
+ezpTags += ezpBTST_PRO ? "#BTST " : ""
+
+ezpTags += ezpBTST_PRO and isBursa ? "#BTST_BURSA " : ""
+ezpTags += ezpBTST_PRO and isUS    ? "#BTST_US "    : ""
+
+ezpTags += ezpBTST_PRO and btstTier == "HIGH" ? "#BTST_HIGH " :
+           ezpBTST_PRO and btstTier == "MID"  ? "#BTST_MID "  :
+           ezpBTST_PRO and btstTier == "LOW"  ? "#BTST_LOW "  :
+           ""
+
+// ==================================================
+// 📆 DAY FILTER
+// ==================================================
+dayFlip = ta.change(time("D")) != 0
+
+var int dayCount = 0
+if dayFlip
+    dayCount := dayCount + 1
+    dayCount
+
+totalDays = ta.highest(dayCount, 1000)
+showDay = totalDays - dayCount < daysToShow
+
+rTop = isFCPO ? ta.highest(high, lb * 2) : ta.highest(high, lb)
+rBot = isFCPO ? ta.lowest(low,  lb * 2) : ta.lowest(low,  lb)
+
+
+// ==================================================
+// 🇲🇾 BURSA
+// ==================================================
+groupBursa = '🇲🇾 Bursa Settings'
+
+vmB = input.float(2.0, 'Volume Multiplier', group = groupBursa)
+minVB = input.int(30000, 'Minimum Volume', group = groupBursa)
+
+bursaMorningCol = input.color(color.green, 'Morning Line', group = groupBursa)
+bursaAfternoonCol = input.color(color.orange, 'Afternoon Line', group = groupBursa)
+
+showBursaLabels = input.bool(true, 'Show Session Labels', group = groupBursa)
+
+morn_start = timestamp(tz, year, month, dayofmonth, 9, 30)
+aft_start = timestamp(tz, year, month, dayofmonth, 14, 30)
+
+avgVB = ta.sma(volume, 20)
+volSpikeB = volume > avgVB * vmB and volume >= minVB
+
+plotshape(SESSION_ON and isBursa and showDay and time == morn_start and volSpikeB, title = 'Bursa Morning Spike', style = shape.arrowup, location = location.belowbar, size = size.tiny, color = sessTextCol, force_overlay = true)
+
+if SESSION_ON and isBursa and showDay and bool(newDay)
+    line.new(bar_index, rBot, bar_index, rTop, extend = extend.both, color = bursaMorningCol, width = lw)
+
+if SESSION_ON and isBursa and showDay and hour(time, tz) == 14 and minute(time, tz) == 30
+    line.new(bar_index, rBot, bar_index, rTop, extend = extend.both, color = bursaAfternoonCol, width = lw)
+
+
+// ==================================================
+// 🇺🇸 US MARKET
+// ==================================================
+groupUS = '🇺🇸 US Settings'
+
+vmU = input.float(2.0, 'Volume Multiplier', group = groupUS)
+minVU = input.int(30000, 'Minimum Volume', group = groupUS)
+
+usOpenCol = input.color(color.green, 'Open Line', group = groupUS)
+usReopenCol = input.color(color.orange, 'Reopen Line', group = groupUS)
+
+hUS = hour(time, tz)
+miUS = minute(time, tz)
+
+if SESSION_ON and isUS and showDay and hUS == 22 and miUS == 30
+    line.new(bar_index, rBot, bar_index, rTop, extend = extend.both, color = usOpenCol, width = lw)
+
+if SESSION_ON and isUS and showDay and hUS == 2 and miUS == 0
+    line.new(bar_index, rBot, bar_index, rTop, extend = extend.both, color = usReopenCol, width = lw)
+
+// ==================================================
+// 🌴 FCPO
+// ==================================================
+groupFCPO = '🌴 FCPO Settings'
+
+fcpoOpenCol = input.color(color.green, '10:30 Line', group = groupFCPO)
+fcpoReopenCol = input.color(color.orange, '14:30 Line', group = groupFCPO)
+fcpoNightCol = input.color(color.rgb(170, 0, 255), '21:00 Line', group = groupFCPO)
+fcpoNightTextCol = color.white
+fcpoNightLabelText = "night.open"
+nightLabelY = rTop + (rTop - rBot) * 0.02
+
+
+
+
+open1030 = timestamp(tz, year, month, dayofmonth, 10, 30)
+reopen1430 = timestamp(tz, year, month, dayofmonth, 14, 30)
+night2100 = timestamp(tz, year, month, dayofmonth, 21, 0)
+
+if SESSION_ON and isFCPO and showDay and time >= open1030 and time[1] < open1030
+    line.new(bar_index, rBot, bar_index, rTop, extend = extend.both, color = fcpoOpenCol, width = lw)
+
+if SESSION_ON and isFCPO and showDay and time >= reopen1430 and time[1] < reopen1430
+    line.new(bar_index, rBot, bar_index, rTop, extend = extend.both, color = fcpoReopenCol, width = lw)
+
+if SESSION_ON and isFCPO and showDay and time >= night2100 and time[1] < night2100
+    line.new(bar_index, rBot, bar_index, rTop, extend = extend.both, color = fcpoNightCol, width = lw)
+
+if SESSION_ON and isBursa and showDay and bool(newDay) and showBursaLabels
+    label.new(bar_index, rTop, 'open', style = label.style_label_down, textcolor = sessLblText, color = bursaMorningCol, size = size.small, yloc = yloc.price, force_overlay = true)
+
+if SESSION_ON and isBursa and showDay and hour(time, tz) == 14 and minute(time, tz) == 30 and showBursaLabels
+    label.new(bar_index, rTop, 'reopen', style = label.style_label_down, textcolor = sessLblText, color = bursaAfternoonCol, size = size.small, yloc = yloc.price, force_overlay = true)
+
+if SESSION_ON and isUS and showDay and hUS == 22 and miUS == 30
+    label.new(bar_index, rTop, 'open', style = label.style_label_down, textcolor = sessLblText, color = usOpenCol, size = size.small, yloc = yloc.price, force_overlay = true)
+
+if SESSION_ON and isUS and showDay and hUS == 2 and miUS == 0
+    label.new(bar_index, rTop, 'reopen', style = label.style_label_down, textcolor = sessLblText, color = usReopenCol, size = size.small, yloc = yloc.price, force_overlay = true)
+
+if SESSION_ON and isFCPO and showDay and time >= open1030 and time[1] < open1030
+    label.new(bar_index, rTop, 'open', style = label.style_label_down, textcolor = sessLblText, color = fcpoOpenCol, size = size.small, yloc = yloc.price, force_overlay = true)
+
+if SESSION_ON and isFCPO and showDay and time >= reopen1430 and time[1] < reopen1430
+    label.new(bar_index, rTop, 'reopen', style = label.style_label_down, textcolor = sessLblText, color = fcpoReopenCol, size = size.small, yloc = yloc.price, force_overlay = true)
+
+if SESSION_ON and isFCPO and showDay and time >= night2100 and time[1] < night2100
+    label.new(bar_index, nightLabelY, 'night.open', style = label.style_label_down, textcolor = fcpoNightTextCol, color = fcpoNightCol, size = size.small, yloc = yloc.price, force_overlay = true)
+
+// ==================================================
+// 📊 VWAP
+// ==================================================
+groupVWAP = '📊 VWAP (Session)'
+
+useVWAP_FCPO = input.bool(true, 'FCPO VWAP', group = groupVWAP)
+useVWAP_Bursa = input.bool(true, 'Bursa VWAP', group = groupVWAP)
+useVWAP_US = input.bool(true, 'US VWAP', group = groupVWAP)
+// ================= VWAP COLORS =================
+fcpoVWAPCol = input.color(color.yellow, 'FCPO VWAP Color', group = groupVWAP)
+bursaVWAPCol = input.color(color.aqua, 'Bursa VWAP Color', group = groupVWAP)
+usVWAPCol = input.color(color.fuchsia, 'US VWAP Color', group = groupVWAP)
+
+vwapAll = ta.vwap(hlc3)
+
+plot(SESSION_ON and isFCPO and useVWAP_FCPO ? vwapAll : na, 'FCPO VWAP', fcpoVWAPCol, 1, force_overlay = true)
+
+plot(SESSION_ON and isBursa and useVWAP_Bursa ? vwapAll : na, 'Bursa VWAP', bursaVWAPCol, 1, force_overlay = true)
+
+plot(SESSION_ON and isUS and useVWAP_US ? vwapAll : na, 'US VWAP', usVWAPCol, 1, force_overlay = true)
+
+// =====================
+// 🏦 EXCHANGE (SAFE)
+// =====================
+var string exchangeName = "UNKNOWN"
+
+if barstate.isfirst
+    parts = str.split(syminfo.tickerid, ":")
+    exchangeName := array.size(parts) > 0 ? array.get(parts, 0) : "UNKNOWN"
+
+// ⏰ ALERT TIME (SAFE, FINAL)
+string alertTime = str.format_time(time, "yyyy-MM-dd HH:mm", syminfo.timezone)
+
+// =====================================================
+// 📅 FCPO EXPIRY DATE & COUNTDOWN
+// =====================================================
+
+// FCPO expiry assumed on 15th of contract month (Bursa standard)
+fcpoExpiryTS =
+     isFCPO and not na(fcpoMonth) and not na(fcpoYear)
+     ? timestamp("Asia/Kuala_Lumpur", fcpoYear, fcpoMonth, 15, 17, 0)
+     : na
+
+daysToExpiry =
+     not na(fcpoExpiryTS)
+     ? math.floor((fcpoExpiryTS - time) / 86400000)
+     : na
+
+
+// 🏭 SECTOR (SAFE)
+string sectorName = na(syminfo.sector) ? "N/A" : syminfo.sector
+
+// =====================
+// 🎯 RISK / REWARD SETTINGS (ALERT ONLY)
+// =====================
+riskATRLen  = 14
+riskATRMult = 1.5   // Stop loss = 1.5 ATR
+tp1RR = 1.0         // 1R
+tp2RR = 2.0         // 2R
+tp3RR = 3.0         // 3R
+
+atrValue = ta.atr(riskATRLen)
+// =====================
+// ATR-NORMALIZED EMA DISTANCE (ALERT CONTEXT)
+// =====================
+
+// EMA20 ATR distance
+ema20ATRDist =
+     not na(ema20_EZP) and atrValue > 0
+     ? (close - ema20_EZP) / atrValue
+     : na
+
+// EMA50 ATR distance
+ema50ATRDist =
+     not na(ema50) and atrValue > 0
+     ? (close - ema50) / atrValue
+     : na
+
+// Combined ATR distance
+emaATRCombo =
+     not na(ema20ATRDist) and not na(ema50ATRDist)
+     ? (ema20ATRDist + ema50ATRDist) / 2
+     : na
+// =====================     
+// ATR EMA ZONE LABEL
+// =====================
+emaATRZone =
+     emaATRCombo > 2.5 ? "🚨 ATR OVEREXTENDED" :
+     emaATRCombo > 1.5 ? "⚠️ ATR EXTENDED" :
+     emaATRCombo > 0.5 ? "✅ ATR HEALTHY" :
+     emaATRCombo >= 0  ? "🟡 ATR NEAR EMA" :
+     "🔴 ATR BELOW EMA"
+// =====================
+// 📌 ENTRY PRICE & TARGETS (ALERT ONLY)
+// =====================
+entryPrice = close
+
+stopLoss = entryPrice - atrValue * riskATRMult
+riskPerUnit = entryPrice - stopLoss
+
+tp1 = entryPrice + riskPerUnit * tp1RR
+tp2 = entryPrice + riskPerUnit * tp2RR
+tp3 = entryPrice + riskPerUnit * tp3RR
+
+// =====================================================
+// 🚨 FCPO EXPIRY WARNING FLAGS
+// =====================================================
+fcpoExpiry7d = isFCPO and daysToExpiry <= 7 and daysToExpiry > 3
+fcpoExpiry3d = isFCPO and daysToExpiry <= 3 and daysToExpiry > 1
+fcpoExpiry1d = isFCPO and daysToExpiry <= 1 and daysToExpiry >= 0
+
+// =====================
+// 🧠 ANALYST DATA (SAFE FOR ALERTS)
+// =====================
+f_num(x) =>
+    na(x) ? "N/A" : str.tostring(x)
+
+f_price(x) =>
+    na(x) ? "N/A" : str.tostring(x, format.mintick)
+
+f_date(x) =>
+    na(x) ? "N/A" : str.format_time(x, "yyyy-MM-dd")
+
+f_atr(x) =>
+    na(x) ? "N/A" : str.tostring(x, "#.##") + " ATR"
+
+emaATRChaseWarning = emaATRCombo > 2.5
+
+
+
+recBuy        = f_num(syminfo.recommendations_buy)
+recBuyStrong  = f_num(syminfo.recommendations_buy_strong)
+recHold       = f_num(syminfo.recommendations_hold)
+recSell       = f_num(syminfo.recommendations_sell)
+recSellStrong = f_num(syminfo.recommendations_sell_strong)
+recTotal      = f_num(syminfo.recommendations_total)
+
+tpHigh   = f_price(syminfo.target_price_high)
+tpLow    = f_price(syminfo.target_price_low)
+tpCount  = f_num(syminfo.target_price_estimates)
+tpDate   = f_date(syminfo.target_price_date)
+
+// =====================
+// 📊 ANALYST CONSENSUS SCORE (0–100) — SAFE
+// =====================
+
+// Raw analyst counts (TradingView built-in)
+buyStrong = syminfo.recommendations_buy_strong
+buyNormal = syminfo.recommendations_buy
+holdCount = syminfo.recommendations_hold
+sellNormal = syminfo.recommendations_sell
+sellStrong = syminfo.recommendations_sell_strong
+totalRecs = syminfo.recommendations_total
+
+// Weighted score calculation
+rawScore =
+     buyStrong * 2 +
+     buyNormal * 1 +
+     holdCount * 0 +
+     sellNormal * -1 +
+     sellStrong * -2
+
+// Normalize to 0–100
+consensusScore =
+     totalRecs > 0
+     ? math.round(50 + (rawScore / (totalRecs * 2)) * 50)
+     : na
+
+// Clamp safety (never below 0 or above 100)
+consensusScore :=
+     consensusScore > 100 ? 100 :
+     consensusScore < 0   ? 0   :
+     consensusScore
+
+// Text label for alerts
+consensusLabel = consensusScore >= 80 ? "🔥 STRONG BULLISH" : consensusScore >= 60 ? "✅ BULLISH" : consensusScore >= 45 ? "⚠️ NEUTRAL" : consensusScore >= 25 ? "❌ BEARISH" :  "🧨 STRONG BEARISH"
+// =====================
+// 📊 ANALYST CONSENSUS DISPLAY (TABLE)
+// =====================
+string analystBreakdown =
+     "B:"  + str.tostring(buyNormal) +
+     "  SB:" + str.tostring(buyStrong) +
+     "  H:"  + str.tostring(holdCount)
+
+string analystBreakdownCompact =
+     "B:" + str.tostring(buyNormal) +
+     "|SB:" + str.tostring(buyStrong) +
+     "|H:" + str.tostring(holdCount)
+
+
+// =====================================================
+// 🔔 FAST ALERT HELPER (MID-BAR, NO SPAM)
+// =====================================================
+f_fireAlert(_condition, _message, _lastBarRef) =>
+    var int _ret = _lastBarRef
+    bool canFire = na(_lastBarRef) or bar_index != _lastBarRef
+    if barstate.isrealtime and _condition and canFire
+        alert(_message, alert.freq_once_per_bar)
+        _ret := bar_index
+    _ret
+
+
+
+// =====================================================
+// 🔔 CONFIRMED ALERT HELPER (DAILY / NON-TRADING)
+// =====================================================
+f_fireConfirmedAlert(_condition, _message, _fired) =>
+    if _condition and not _fired
+        alert(_message, alert.freq_once_per_bar)
+        true
+    else
+        _fired
+
+////////////////////////////////////////////////////////
+// =====================================================
+// INPUTS ZZ.CORE Entry Exit Signal nd plot 
+// =====================================================
+////////////////////////////////////////////////////////
+useLong = input.bool(true, "Enable Long")
+reEntryCooldown = input.int(3, "Re-entry cooldown (bars)", minval=1)
+
+// =====================================================
+// MARKET STATE (SIMPLIFIED ZZ MAJOR)
+// =====================================================
+majorLen = input.int(55, "Major Structure Length")
+
+hh = ta.highest(high, majorLen)
+ll = ta.lowest(low, majorLen)
+
+marketUp   = close > ll and hh > hh[1]
+marketDown = close < hh and ll < ll[1]
+
+// =====================================================
+// STRUCTURE (ZZ MINOR)
+// =====================================================
+minorLen = input.int(21, "Minor Structure Length")
+
+structUp   = close > ta.lowest(low, minorLen)
+structDown = close < ta.highest(high, minorLen)
+
+// =====================================================
+// MOMENTUM (RSI PLACEHOLDER – SAME AS STRATEGY)
+// =====================================================
+e2su = ta.rsi(close, 14) > 55
+e2so = ta.rsi(close, 14) < 45
+
+// =====================================================
+// ENTRY TRIGGER (SUBWAVE / BREAKOUT)
+// =====================================================
+subwaveHL = low > low[1] and low[1] < low[2]
+subwaveLH = high < high[1] and high[1] > high[2]
+
+breakHigh = close > ta.highest(high, 10)[1]
+breakLow  = close < ta.lowest(low, 10)[1]
+
+// =====================================================
+// LABEL CONDITIONS (SAME AS STRATEGY)
+// =====================================================
+
+// GREEN LABEL → ENTRY / RE-ENTRY
+buyLabel =
+     useLong
+ and marketDown
+ and structDown
+ and e2so
+ and not e2su
+ and (subwaveLH or breakLow)
+
+// RED LABEL → EXIT
+sellLabel =
+     useLong
+ and marketUp
+ and structUp
+ and e2su
+ and not e2so
+ and (subwaveHL or breakHigh)
+
+// 🟡 RE-ENTRY ZONE (trend continuation)
+reEntryLabel =
+     useLong
+ and marketUp
+ and structUp
+ and not e2so
+ and e2su
+ and (subwaveHL or breakHigh)
+// =====================================================
+// STATE ENGINE (SIMULATED POSITION)
+// =====================================================
+var bool inTrade = false
+var int  lastExitBar = na
+var bool reEntryUsed = false
+var bool hadEntry = false
+var bool highPriorityAlertFired = false
+
+
+canReEnter = not inTrade and (na(lastExitBar) or bar_index > lastExitBar + reEntryCooldown)
+
+// =====================================================
+// SIGNAL LOGIC
+// =====================================================
+entrySignalZZCore   = buyLabel and not inTrade
+
+if entrySignalZZCore
+    inTrade := true
+    reEntryUsed := false
+    hadEntry := true
+
+
+reEntrySignalZZCore =
+     reEntryLabel
+ and canReEnter
+ and not reEntryUsed
+ and hadEntry
+
+
+exitSignalZZCore    = sellLabel and inTrade
+
+// =====================================================
+// STATE UPDATE
+// =====================================================
+if reEntrySignalZZCore
+    inTrade := true
+    reEntryUsed := true
+
+if exitSignalZZCore
+    inTrade := false
+    lastExitBar := bar_index
+    reEntryUsed := false
+
+// =====================================================
+// 👁️ ZZ CORE — VISIBILITY GATES (UI ONLY)
+// =====================================================
+zzCoreEntryVisible =
+     showAllSignals and 
+     entrySignalZZCore and
+     showZZCoreSignal and
+     showZZCoreEntry
+
+zzCoreReEntryVisible =
+     showAllSignals and 
+     reEntrySignalZZCore and
+     showZZCoreSignal and
+     showZZCoreReEntry
+
+zzCoreExitVisible =
+     showAllSignals and 
+     exitSignalZZCore and
+     showZZCoreSignal and
+     showZZCoreExit
+
+// =====================================================
+// PLOTS
+// =====================================================
+plotshape(
+    ZZ_ON and zzCoreEntryVisible,
+    title="ZZ CORE ENTRY",
+    text="entry",
+    style=shape.labelup,
+    location=location.belowbar,
+    color=color.rgb(249, 0, 121),
+    textcolor=color.white,
+    size=size.tiny,
+    force_overlay=true
+)
+
+plotshape(
+    ZZ_ON and zzCoreReEntryVisible,
+    title="ZZ CORE REENTRY",
+    text="reentry",
+    style=shape.labelup,
+    location=location.belowbar,
+    color=color.rgb(249, 0, 121),
+    textcolor=color.white,
+    size=size.tiny,
+    force_overlay=true
+)
+
+plotshape(
+    ZZ_ON and zzCoreExitVisible,
+    title="ZZ CORE EXIT",
+    text="exit",
+    style=shape.labeldown,
+    location=location.abovebar,
+    color=color.rgb(249, 0, 121),
+    textcolor=color.white,
+    size=size.tiny,
+    force_overlay=true
+)
+
+
+////////////////////////////////////////////////////////////////
+/////////////////SYARIAH LABEL//////////////////////////////////
+///////////////////////////////////////////////////////////////
+isNonSyariah = array.includes(BURSA_NON_SYARIAH, syminfo.ticker)
+isUSHalal = array.includes(US_SHARIAH_MASTER, syminfo.ticker)
+isUSDoubtful  = array.includes(US_DOUBTFUL, syminfo.ticker)
+isUSNotHalal  = array.includes(US_NOT_HALAL, syminfo.ticker)
+isCryptoHalal = array.includes(CRYPTO_HALAL, syminfo.ticker)
+isPN17 = array.includes(PN17_LIST, syminfo.ticker)
+isGN3  = array.includes(GN3_LIST, syminfo.ticker)
+
+
+// Market-aware Syariah
+isSyariah =
+     isBursa  ? not isNonSyariah :
+     false
+string shariahLabel = isBursa  ? (isSyariah ? "☪️ Syariah (SAC MY)" : "☪️ Non-Syariah (SAC MY)") : isUS     ? (isUSHalal ? "☪️ Shariah Screened (US)" :  isUSDoubtful ? "⚠️ Shariah: Doubtful (US)" : isUSNotHalal ? "❌ Non-Shariah (US)" : "⚪ Shariah: Not Screened") : isCrypto ? (isCryptoHalal ? "🪙 Shariah-Permissible (Use-Based)" : "⚠️ Shariah: Review Required") :  "⚪ Shariah: N/A" 
+//////////////////////////
+string distressLabel = ""
+
+if isPN17
+    distressLabel := "🚨 PN17: Financially Distressed (Main Market)"
+else if isGN3
+    distressLabel := "⚠️ GN3: Distressed (ACE Market)"
+
+
+// =====================================================
+// 🏷️ MARKET-AWARE STATUS LABEL (FINAL)
+// =====================================================
+
+string complianceLabel = ""
+
+if isBursa
+    complianceLabel :=
+         isPN17 ? "🚨 PN17: Financially Distressed (MAIN)" :
+         isGN3  ? "⚠️ GN3: Financially Distressed (ACE)" :
+         shariahLabel
+
+else if isUS
+    complianceLabel := shariahLabel + "\n📜 Regulation: SEC / NASDAQ"
+
+else if isCrypto
+    complianceLabel := shariahLabel + "\n📜 Regulation: Use-Based Screening"
+
+else if isFCPO
+    complianceLabel := "📜 Regulated Derivative: Bursa FCPO"
+
+else
+    complianceLabel := "📜 Regulation: N/A"
+
+// =====================
+// 🧠 SMART EMA STACK LABEL
+// =====================
+string emaStackShort = "EMA:OFF"
+
+if useEMA50
+    if ema20_EZP > ema50
+        emaStackShort := "EMA20>EMA50"
+    else
+        emaStackShort := "EMA20<EMA50"
+
+///=========================
+///===chart link ======
+////===================
+
+// =====================
+// ✅ FINAL SAFE ALERT SYMBOL (NO JSON EVER)
+// =====================
+string alertSymbol =
+     isFCPO
+     ? syminfo.prefix + ":" + syminfo.ticker
+     : syminfo.tickerid
+
+
+
+// =====================
+// 🏷️ ALERT HEADER (DISPLAY ONLY)
+// =====================
+string alertHeader =
+     isFCPO
+     ? alertSymbol + " | FCPO (Current Contract)"
+     : alertSymbol
+
+// =====================
+// 🔗 SAFE TRADINGVIEW CHART LINK
+// =====================
+string chartLink =
+     "https://www.tradingview.com/chart/?symbol=" +
+     str.replace_all(alertSymbol, ":", "%3A")
+
+
+// =====================================================
+// ⏰ CRYPTO DAILY FAILSAFE RESET
+// =====================================================
+if isCrypto and ta.change(time("D")) != 0
+    e2soEntryLocked   := false
+    e2soReentryLocked := false
+    e2suEntryLocked   := false
+    zzMajorV2InTrade  := false
+
+// =====================================================
+// 🚨 ALERT LOCKS — ONE PER ENGINE // 🔒 LOCK / STATE VARIABLES
+// =====================================================
+var bool alert_E2Su  = false
+
+var bool alert_E2So_Entry   = false
+var bool alert_E2So_Re     = false
+var bool alert_E2So_Exit   = false
+var bool alert_ZZCore = false
+var bool alert_ZZMajorV2 = false
+var bool alert_ZZMinor = false
+var bool alert_UTC_Cross = false
+var bool alert_UTC_Entry = false
+var bool alert_UTC_Reentry = false
+var bool alert_BTST = false
+var bool alert_IBO = false
+var bool alert_FCPO = false
+
+// =====================================================
+// ⛔ BAR-INDEX GUARDS (FAST ALERT MODE)
+// =====================================================
+
+// E2 engines
+var int lastBar_E2Su          = na
+var int lastBar_E2SoEntry    = na
+var int lastBar_E2SoReentry  = na
+var int lastBar_E2SoExit     = na
+
+// ZZ engines
+var int lastBar_ZZCore       = na
+var int lastBar_ZZMajor      = na
+var int lastBar_ZZMinor      = na
+
+// Other systems
+var int lastBar_UTC          = na
+var int lastBar_IBO          = na
+var int lastBar_BTST         = na
+
+// =====================================================
+// 🔄 ALERT RESET — ONCE PER BAR
+// =====================================================
+if barstate.isnew
+    highPriorityAlertFired := false 
+    alert_E2Su        := false
+    alert_E2So_Entry   := false
+    alert_E2So_Re     := false
+    alert_E2So_Exit   := false
+    alert_ZZCore      := false
+    alert_ZZMajorV2   := false
+    alert_ZZMinor     := false
+    alert_UTC_Cross   := false
+    alert_UTC_Entry   := false
+    alert_UTC_Reentry := false
+    alert_BTST        := false
+    alert_IBO         := false
+    alert_FCPO        := false
+
+// UTC ENTRY COOLDOWN RESET
+if barstate.isconfirmed and not utcBearZone
+    alert_UTC_Entry := false
+    alert_UTC_Reentry := false
+
+if not e2soEntryLocked
+    e2soReentryLocked := false
+
+if emaStackShort == "Bear"
+    e2soReentryLocked := false
+// =====================
+// 🔒 E2So REENTRY STATE (FIXED)
+// =====================
+e2soReentryState = ZZ_ON and e2soEntryLocked and not e2soReentryLocked and not exitSignal and not na(lastBar_E2SoEntry) and bar_index > lastBar_E2SoEntry and pullbackCond and trendStillValid // must already be in trade// only once per trade leg // exit has priority // entry must have occurred// not same candle
+//e2soReentryState = e2soEntryLocked and  not e2soReentryLocked and  pullbackCond and trendStillValid and not exitSignal               // must already be in trade // only once per leg // exit has priority 
+
+//e2soReentryState = reentry and not e2soEntryLocked and not e2soReentryLocked   //old condition
+e2soReentryState := e2soEntryLocked and bar_index > lastBar_E2SoEntry and pullbackCond and trendStillValid and not exitSignal
+
+//e2soReentryState := e2soEntryLocked and pullbackCond and trendStillValid  //new condition 
+
+
+
+// 🔓 E2So REENTRY AUTO-RESET (TREND SAFE)
+if barstate.isrealtime and (macd2 < signal or hist2 < 0)
+    e2soReentryLocked := false
+    // Auto-unlock if trend weakens
+
+if not trendStillValid
+    e2soReentryLocked := false
+
+// =====================================================
+// 🐂 Major Bull Score (All-time Major Candle)
+// =====================================================
+var string mb_majorBullText = ""
+
+// --- Detect earliest bar
+var float mb_firstOpen = na
+if na(mb_firstOpen)
+    mb_firstOpen := open
+
+// --- All-time High / Low
+var float mb_allTimeHigh = na
+var float mb_allTimeLow  = na
+
+mb_allTimeHigh := na(mb_allTimeHigh) ? high : math.max(mb_allTimeHigh, high)
+mb_allTimeLow  := na(mb_allTimeLow)  ? low  : math.min(mb_allTimeLow, low)
+
+// --- Current Close
+float mb_C = close
+float mb_O = mb_firstOpen
+float mb_H = mb_allTimeHigh
+float mb_L = mb_allTimeLow
+
+// --- Range
+float mb_rng = math.max(mb_H - mb_L, syminfo.mintick)
+
+// --- Ratios
+float mb_bodyStrength = (mb_C - mb_O) / mb_rng
+float mb_upperRatio   = (mb_H - mb_C) / mb_rng
+float mb_lowerRatio   = (mb_O - mb_L) / mb_rng
+
+// --- Score Logic
+string mb_majorScore = "E"
+float  mb_majorPct   = mb_bodyStrength * 100.0
+
+if mb_C <= mb_O
+    mb_majorScore := "F"
+else
+    if mb_bodyStrength >= 0.90 and mb_upperRatio <= 0.05 and mb_lowerRatio <= 0.05
+        mb_majorScore := "A+"
+    else if mb_bodyStrength >= 0.80 and mb_upperRatio <= 0.10 and mb_lowerRatio <= 0.10
+        mb_majorScore := "A"
+    else if mb_bodyStrength >= 0.70
+        mb_majorScore := "B"
+    else if mb_bodyStrength >= 0.60
+        mb_majorScore := "C"
+    else if mb_bodyStrength >= 0.50
+        mb_majorScore := "D"
+    else
+        mb_majorScore := "E"
+
+// --- ready line for alerts
+string majorBullLine = "\nMajor BULL Score: " + mb_majorScore + " (" + str.tostring(mb_majorPct, "#.##") + "%)\n"
+
+
+// =====================================================
+// 🟦 DAILY MARUBOZU SCORE (TF-LOCKED, ALWAYS VISIBLE)
+// =====================================================
+
+// --- HTF DAILY candle (ISOLATED NAMES — NO COLLISION)
+[dO_D, dH_D, dL_D, dC_D] = request.security(syminfo.tickerid,"D",[open, high, low, close],barmerge.gaps_off,barmerge.lookahead_off)
+
+// --- Candle geometry
+float dRange = math.max(dH_D - dL_D, syminfo.mintick)
+float dBody  = dC_D - dO_D
+
+float dBodyPct   = dBody / dRange
+float dUpperWick = (dH_D - dC_D) / dRange
+float dLowerWick = (dO_D - dL_D) / dRange
+
+string dailyMaruScore = "NA"
+float  dailyMaruPct   = dBodyPct * 100.0
+
+// --- Score logic (bullish only)
+if dC_D <= dO_D
+    dailyMaruScore := "F"
+else
+    if dBodyPct >= 0.90 and dUpperWick <= 0.03 and dLowerWick <= 0.03
+        dailyMaruScore := "A+"
+    else if dBodyPct >= 0.80
+        dailyMaruScore := "A"
+    else if dBodyPct >= 0.70
+        dailyMaruScore := "B"
+    else if dBodyPct >= 0.60
+        dailyMaruScore := "C"
+    else if dBodyPct >= 0.50
+        dailyMaruScore := "D"
+    else
+        dailyMaruScore := "E"
+
+// --- Alert / display line
+string dailyMaruLine ="\nDaily MARUBOZU: " +dailyMaruScore +" (" + str.tostring(dailyMaruPct, "#.##") + "%)"
+
+// =====================================================
+// 🟦 WEEKLY MARUBOZU SCORE
+// =====================================================
+
+[wO_D, wH_D, wL_D, wC_D] = request.security(syminfo.tickerid,"W",[open, high, low, close],barmerge.gaps_off,barmerge.lookahead_off)
+//[wO_D, wH_D, wL_D, wC_D] = request.security(syminfo.tickerid,"W",[open[1], high[1], low[1], close[1]],barmerge.gaps_off,barmerge.lookahead_off)
+
+
+float wRange = math.max(wH_D - wL_D, syminfo.mintick)
+float wBody  = wC_D - wO_D
+
+float wBodyPct   = wBody / wRange
+float wUpperWick = (wH_D - wC_D) / wRange
+float wLowerWick = (wO_D - wL_D) / wRange
+
+string weeklyMaruScore = "NA"
+float  weeklyMaruPct   = wBodyPct * 100.0
+
+if wC_D <= wO_D
+    weeklyMaruScore := "F"
+else
+    if wBodyPct >= 0.90 and wUpperWick <= 0.03 and wLowerWick <= 0.03
+        weeklyMaruScore := "A+"
+    else if wBodyPct >= 0.80
+        weeklyMaruScore := "A"
+    else if wBodyPct >= 0.70
+        weeklyMaruScore := "B"
+    else if wBodyPct >= 0.60
+        weeklyMaruScore := "C"
+    else if wBodyPct >= 0.50
+        weeklyMaruScore := "D"
+    else
+        weeklyMaruScore := "E"
+
+string weeklyMaruLine = "\nWeekly MARUBOZU: " + weeklyMaruScore + " (" + str.tostring(weeklyMaruPct, "#.##") + "%)"
+
+// =====================================================
+// 🟪 MONTHLY MARUBOZU SCORE
+// =====================================================
+
+[mO_D, mH_D, mL_D, mC_D] = request.security(syminfo.tickerid,"M",[open, high, low, close],barmerge.gaps_off,barmerge.lookahead_off)
+//[mO_D, mH_D, mL_D, mC_D] = request.security(syminfo.tickerid,"M",[open[1], high[1], low[1], close[1]],barmerge.gaps_off,barmerge.lookahead_off)
+
+
+float mRange = math.max(mH_D - mL_D, syminfo.mintick)
+float mBody  = mC_D - mO_D
+
+float mBodyPct   = mBody / mRange
+float mUpperWick = (mH_D - mC_D) / mRange
+float mLowerWick = (mO_D - mL_D) / mRange
+
+string monthlyMaruScore = "NA"
+float  monthlyMaruPct   = mBodyPct * 100.0
+
+if mC_D <= mO_D
+    monthlyMaruScore := "F"
+else
+    if mBodyPct >= 0.90 and mUpperWick <= 0.03 and mLowerWick <= 0.03
+        monthlyMaruScore := "A+"
+    else if mBodyPct >= 0.80
+        monthlyMaruScore := "A"
+    else if mBodyPct >= 0.70
+        monthlyMaruScore := "B"
+    else if mBodyPct >= 0.60
+        monthlyMaruScore := "C"
+    else if mBodyPct >= 0.50
+        monthlyMaruScore := "D"
+    else
+        monthlyMaruScore := "E"
+
+string monthlyMaruLine ="\nMonthly MARUBOZU: " +monthlyMaruScore +" (" + str.tostring(monthlyMaruPct, "#.##") + "%)"
+
+// =====================================================
+// 🟧 YEARLY MARUBOZU SCORE
+// =====================================================
+
+[yO_D, yH_D, yL_D, yC_D] = request.security(syminfo.tickerid,"12M",[open, high, low, close],barmerge.gaps_off,barmerge.lookahead_off)
+//[yO_D, yH_D, yL_D, yC_D] = request.security(syminfo.tickerid,"12M",[open[1], high[1], low[1], close[1]],barmerge.gaps_off,barmerge.lookahead_off)
+
+
+float yRange = math.max(yH_D - yL_D, syminfo.mintick)
+float yBody  = yC_D - yO_D
+
+float yBodyPct   = yBody / yRange
+float yUpperWick = (yH_D - yC_D) / yRange
+float yLowerWick = (yO_D - yL_D) / yRange
+
+string yearlyMaruScore = "NA"
+float  yearlyMaruPct   = yBodyPct * 100.0
+
+if yC_D <= yO_D
+    yearlyMaruScore := "F"
+else
+    if yBodyPct >= 0.90 and yUpperWick <= 0.03 and yLowerWick <= 0.03
+        yearlyMaruScore := "A+"
+    else if yBodyPct >= 0.80
+        yearlyMaruScore := "A"
+    else if yBodyPct >= 0.70
+        yearlyMaruScore := "B"
+    else if yBodyPct >= 0.60
+        yearlyMaruScore := "C"
+    else if yBodyPct >= 0.50
+        yearlyMaruScore := "D"
+    else
+        yearlyMaruScore := "E"
+
+string yearlyMaruLine ="\nYearly MARUBOZU: " +yearlyMaruScore +" (" + str.tostring(yearlyMaruPct, "#.##") + "%)"
+
+// =====================================================
+// 🟩 ZZ INTRADAY (SESSION-BASED) — v6 SAFE (FIXED)
+// =====================================================
+string dailyTrendScore = "NA"
+float  dailyTrendPct   = na
+
+string _trendScore = ""
+float  _trendPct   = na
+
+if not na(dC)
+    [_trendScore, _trendPct] = f_intradayTrend_from_AMPM(amTrendPct_last,pmTrendPct_last)
+
+
+
+    dailyTrendScore := _trendScore
+    dailyTrendPct   := _trendPct
+
+
+
+
+// =====================================================
+// 📩 Alert Lines
+// =====================================================
+string dailyTrendLine = "\nIntraday TREND Score: " + dailyTrendScore + " (" + str.tostring(dailyTrendPct, "#.##") + "%)"
+
+// =====================
+// 🧠 HUMAN-READABLE HELPERS (ALERT ONLY)
+// =====================
+
+// Price vs EMA text
+f_priceVsEMA(string emaName, float distPct) => na(distPct) ? emaName + ": N/A" : distPct >= 0 ? "Price > " + emaName + " (+" + str.tostring(distPct, "#.##") + "%)" : "Price < " + emaName + " ("  + str.tostring(distPct, "#.##") + "%)"
+
+
+// EMA Combo meaning
+f_emaComboText(float comboPct, string comboZone) =>na(comboPct) ? "EMA Position: N/A" :"Price > EMA20 & EMA50 (" + str.tostring(comboPct, "#.##") + "%) " + comboZone
+
+// ATR → Entry Risk translation
+f_entryRisk(float atrCombo) =>na(atrCombo) ? "Buy Risk: N/A" :atrCombo > 2.5 ? "Buy Risk: VERY HIGH 🔴 (Do NOT chase)" :atrCombo > 1.5 ? "Buy Risk: HIGH 🟠 (Pullback needed)" :atrCombo > 0.5 ? "Buy Risk: MEDIUM 🟡 (Wait for pullback)" :"Buy Risk: LOW 🟢 (Near value zone)"
+
+// =====================================================
+// 📊 ZZ SCORE TABLE (ON-CHART OVERLAY)
+// =====================================================
+groupScoreTable = "📊 ZZ Scoreboard"
+// =====================
+// 🎛️ TABLE STYLE CONTROLS
+// =====================
+textTransp   = input.int(0,   "Text Transparency (0 = Solid)", minval=0, maxval=100, group=groupScoreTable)
+bgTransp     = input.int(70,  "Row Background Transparency",  minval=0, maxval=100, group=groupScoreTable)
+headerTransp = input.int(0,   "Header Background Transparency", minval=0, maxval=100, group=groupScoreTable)
+
+// =====================
+// 🎨 TABLE COLOR PICKERS
+// =====================
+tblTextBaseCol  = input.color(color.white, "Table Text Color", group=groupScoreTable)
+tblRowBaseCol   = input.color(color.black, "Row Background Color", group=groupScoreTable)
+tblHeaderBaseCol= input.color(color.black, "Header Background Color", group=groupScoreTable)
+// =====================
+// 🎨 HEADER TEXT STYLE
+// =====================
+tblHeaderTextBaseCol = input.color(color.white, "Header Text Color", group=groupScoreTable)
+headerTextTransp     = input.int(0, "Header Text Transparency", minval=0, maxval=100, group=groupScoreTable)
+
+// =====================
+// 📐 TABLE POSITION MAP
+// =====================
+tablePos =
+     tablePositionInput == "Top Left"    ? position.top_left :
+     tablePositionInput == "Middle Right" ? position.middle_right :
+     tablePositionInput == "Middle Left" ? position.middle_left :
+     tablePositionInput == "Bottom Right"? position.bottom_right :
+     tablePositionInput == "Bottom Left" ? position.bottom_left :
+     position.top_right
+
+// =====================
+// 🔠 TABLE TEXT SIZE MAP
+// =====================
+tblTextSize =
+     tableTextSizeInput == "Tiny"  ? size.tiny :
+     tableTextSizeInput == "Small" ? size.small :
+     tableTextSizeInput == "Large" ? size.large :
+     size.normal
+
+// =====================
+// TABLE COLORS (DERIVED)
+// =====================
+tblTextCol = color.new(tblTextBaseCol, textTransp)
+tblBgCol = color.new(tblRowBaseCol, bgTransp)
+tblHeaderBg = color.new(tblHeaderBaseCol, headerTransp)
+tblHeaderTextCol = color.new(tblHeaderTextBaseCol, headerTextTransp)
+
+
+// =====================
+// 🎨 UTC TEXT COLOR (TEXT ONLY)
+// =====================
+color utcBullTextCol =
+     utcBullScore >= 60 ? color.lime :
+     utcBullScore >= 40 ? color.yellow :
+     color.gray
+
+color utcBearTextCol =
+     utcBearScore >= 60 ? color.red :
+     utcBearScore >= 40 ? color.orange :
+     color.gray
+
+bullStateTxt = utcBullState
+bearStateTxt = dtcBearState
+
+// =====================
+// 🎨 SCORE → COLOR MAP (SAFE)
+// =====================
+f_gradeColor(string grade) =>grade == "A+" or grade == "A" ? color.lime :grade == "B" or grade == "C"  ? color.yellow : grade == "D" ? color.orange :color.red
+
+
+// =====================
+// 🧠 TABLE STATE TRACKER (v6 SAFE)
+// =====================
+var bool _lastCompact = false
+var bool _firstRun    = true
+var string _lastTablePos  = ""
+var string _lastTextSize  = ""
+
+bool tableNeedsRebuild =
+     _firstRun or
+     _lastCompact != compactTable or
+     _lastTablePos != tablePositionInput or
+     _lastTextSize != tableTextSizeInput
+
+_lastCompact  := compactTable
+_lastTablePos := tablePositionInput
+_lastTextSize := tableTextSizeInput 
+_firstRun     := false
+
+
+
+var table zzScoreTable = na
+
+if na(zzScoreTable) or tableNeedsRebuild
+    zzScoreTable := table.new(tablePos,2,compactTable ? 9 : 16,frame_color = color.new(color.gray, 40),frame_width = 1)
+
+// =====================
+// 📐 SCORE TABLE ROW MAP (FIXED)
+// =====================
+int ROW_HEADER        = 0
+int ROW_CONSENSUS     = 1
+int ROW_MOMENTUM      = 2
+int ROW_EZP_SCORE     = 3
+int ROW_EZP_RATING    = 4
+
+// --- Intraday & Phase Trends
+int ROW_INTRADAY_TREND = compactTable ? na : 5
+int ROW_AM_TREND       = compactTable ? na : 6
+int ROW_PM_TREND       = compactTable ? na : 7
+
+// --- Daily / Zones / Higher TF
+int ROW_DAILY_MARU     = compactTable ? 5 : 8
+int ROW_WEEKLY_MARU    = compactTable ? na : 9
+int ROW_MONTHLY_MARU   = compactTable ? na : 10
+int ROW_YEARLY_MARU    = compactTable ? na : 11
+int ROW_UTC_BULL       = compactTable ? 6 : 12
+int ROW_DTC_BEAR       = compactTable ? 7 : 13
+int ROW_MAJOR_BULL     = compactTable ? 8 : 14
+int ROW_TREND_STACK    = compactTable ? na : 15
+
+
+// =====================================================
+// 🎨 GRADE → COLOR (TIERED)
+// =====================================================
+f_gradeTierColor(string grade) =>
+    switch grade
+        "A+" => color.lime
+        "A"  => color.lime
+        "B"  => color.lime
+
+        "C"  => color.yellow
+        "D"  => color.yellow
+
+        "E"  => color.red
+        "F"  => color.red
+
+        => color.gray
+
+// =====================
+// 🎨 DYNAMIC SCORE COLORS
+// =====================
+
+color intradayTrendCol = f_gradeColor(dailyTrendScore)
+color marubozuCol = f_gradeColor(dailyMaruScore)
+color majorBullCol     = f_gradeColor(mb_majorScore)
+color amTrendCol = f_gradeColor(amTrendGrade)
+color pmTrendCol = f_gradeColor(pmTrendGrade)
+// =====================================================
+// 🎨 GRADE → COLOR (TIERED)
+// =====================================================
+
+
+if ZZ_ON and showScoreTable and (barstate.islast or barstate.isfirst)
+    int lastRow = compactTable ? 6 : 11
+    table.clear(zzScoreTable, 0, 0, 1, lastRow)
+
+
+    // ---- HEADER
+    table.cell(zzScoreTable, 0, 0, "ZZ SCOREBOARD", text_color = tblHeaderTextCol, bgcolor = tblHeaderBg, text_size = tblTextSize)
+    table.cell(zzScoreTable, 1, 0, syminfo.ticker, text_color = tblHeaderTextCol, bgcolor = tblHeaderBg, text_size = tblTextSize)
+
+    // ---- ANALYST CONSENSUS
+    table.cell(zzScoreTable, 0, 1, "Consensus", text_color = tblTextCol, bgcolor = tblBgCol, text_size = tblTextSize)
+    table.cell(zzScoreTable,1,1,str.tostring(consensusScore) + "% | " +(compactTable ? analystBreakdownCompact : analystBreakdown),text_color = tblTextCol,bgcolor    = tblBgCol, text_size = tblTextSize)
+
+    // ---- MOMENTUM
+    table.cell(zzScoreTable, 0, 2, "Momentum", text_color = tblTextCol, bgcolor = tblBgCol, text_size = tblTextSize)
+    table.cell(zzScoreTable, 1, 2, str.tostring(bullScore) + "%", text_color = tblTextCol, bgcolor = tblBgCol, text_size = tblTextSize)
+
+    // ---- EZP
+    table.cell(zzScoreTable, 0, 3, "EZP Score", text_color = tblTextCol, bgcolor = tblBgCol, text_size = tblTextSize)
+    table.cell(zzScoreTable, 1, 3, str.tostring(ezpScore) + "%", text_color = tblTextCol, bgcolor = tblBgCol, text_size = tblTextSize)
+
+    table.cell(zzScoreTable, 0, 4, "EZP Rating", text_color = tblTextCol, bgcolor = tblBgCol, text_size = tblTextSize)
+    table.cell(zzScoreTable, 1, 4, ezpRating, text_color = tblTextCol, bgcolor = tblBgCol, text_size = tblTextSize)
+
+    // ---- INTRADAY (ONLY WHEN NOT COMPACT)
+    if not na(ROW_INTRADAY_TREND)
+        string intradayTxt =na(dailyTrendPct)? "NA": dailyTrendScore + " (" + str.tostring(dailyTrendPct, "#.##") + "%)"
+        table.cell(zzScoreTable,0,ROW_INTRADAY_TREND,"Intraday Trend",text_color = tblTextCol,bgcolor    = tblBgCol,text_size  = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_INTRADAY_TREND,intradayTxt,text_color = f_gradeTierColor(dailyTrendScore),bgcolor    = tblBgCol,text_size  = tblTextSize)
+
+    // ---- AM TREND
+    if not na(ROW_AM_TREND)
+        string amTxt = na(amTrendPct_last) ? "NA" : amTrendGrade_last + " (" + str.tostring(amTrendPct_last, "#.##") + "%)"
+        table.cell(zzScoreTable,0,ROW_AM_TREND,"AM Trend",text_color = amTrendCol, bgcolor = tblBgCol, text_size = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_AM_TREND,amTxt, text_color = f_gradeTierColor(amTrendGrade_last), bgcolor = tblBgCol,text_size = tblTextSize)
+        
+    // ---- PM TREND
+    if not na(ROW_PM_TREND)
+        string pmTxt = na(pmTrendPct_last) ? "NA" : pmTrendGrade_last + " (" + str.tostring(pmTrendPct_last, "#.##") + "%)"
+        table.cell(zzScoreTable,0,ROW_PM_TREND,"PM Trend",text_color = pmTrendCol, bgcolor = tblBgCol,text_size = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_PM_TREND,pmTxt,text_color = f_gradeTierColor(pmTrendGrade_last), bgcolor = tblBgCol,text_size = tblTextSize)
+        
+    // ---- UTC ZONE SCORES (NON-COMPACT ONLY)
+    if not na(ROW_UTC_BULL)
+        table.cell(zzScoreTable,0,ROW_UTC_BULL,"UTC Bull Zone",text_color = utcBullTextCol, bgcolor    = tblBgCol,   text_size  = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_UTC_BULL,str.tostring(utcBullScore) + "%" + bullStateTxt,text_color = utcBullTextCol,bgcolor    = tblBgCol,text_size  = tblTextSize)
+
+
+    if not na(ROW_DTC_BEAR)
+        table.cell(zzScoreTable,0,ROW_DTC_BEAR,"DTC Bear Zone",text_color = utcBearTextCol, bgcolor    = tblBgCol, text_size  = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_DTC_BEAR,str.tostring(utcBearScore) + "%" + bearStateTxt,text_color = utcBearTextCol, bgcolor    = tblBgCol, text_size  = tblTextSize)
+
+
+    // ---- DAILY MARUBOZU
+    if not na(ROW_DAILY_MARU)
+        table.cell(zzScoreTable,0,ROW_DAILY_MARU,"Daily Marubozu",text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_DAILY_MARU,dailyMaruScore + " (" + str.tostring(dailyMaruPct, "#.##") + "%)",text_color = f_gradeColor(dailyMaruScore),bgcolor = tblBgCol,text_size = tblTextSize)
+
+    // ---- WEEKLY MARUBOZU
+    if not na(ROW_WEEKLY_MARU)
+        table.cell(zzScoreTable,0,ROW_WEEKLY_MARU,"Weekly Marubozu",text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_WEEKLY_MARU,weeklyMaruScore + " (" + str.tostring(weeklyMaruPct, "#.##") + "%)",text_color = f_gradeColor(weeklyMaruScore),bgcolor = tblBgCol,text_size = tblTextSize)
+
+// ---- MONTHLY MARUBOZU
+    if not na(ROW_MONTHLY_MARU)
+        table.cell(zzScoreTable,0,ROW_MONTHLY_MARU,"Monthly Marubozu",text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_MONTHLY_MARU,monthlyMaruScore + " (" + str.tostring(monthlyMaruPct, "#.##") + "%)",text_color = f_gradeColor(monthlyMaruScore),bgcolor = tblBgCol,text_size = tblTextSize)
+
+// ---- YEARLY MARUBOZU
+    if not na(ROW_YEARLY_MARU)
+        table.cell(zzScoreTable,0,ROW_YEARLY_MARU,"Yearly Marubozu",text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_YEARLY_MARU,yearlyMaruScore + " (" + str.tostring(yearlyMaruPct, "#.##") + "%)",text_color = f_gradeColor(yearlyMaruScore),bgcolor = tblBgCol,text_size = tblTextSize)
+
+
+
+    // ---- MAJOR BULL (ALWAYS SHOWN)
+    if not na(ROW_MAJOR_BULL)
+        table.cell(zzScoreTable,0,ROW_MAJOR_BULL,"Major BULL",text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_MAJOR_BULL,mb_majorScore + " (" + str.tostring(mb_majorPct, "#.##") + "%)",text_color = majorBullCol,bgcolor = tblBgCol,text_size = tblTextSize)
+
+
+    // ---- TREND STACK
+    if not na(ROW_TREND_STACK)
+        table.cell(zzScoreTable, 0, ROW_TREND_STACK, "Trend",text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
+        table.cell(zzScoreTable, 1, ROW_TREND_STACK, emaStackShort,text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////Alerts Section start here////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// =====================================================================================================================================
+// 🚨 E2Su ALERTS (HELPER)
+// ======================================================================================================================================
+
+// 🟢 E2Su ENTRY
+if e2suEntry and not e2suEntryLocked
+    lastBar_E2Su := f_fireAlert(
+            true,
+            alertSymbol + " | E2Su 🟩| 🟢 ENTRY\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EP: " + str.tostring(close) +
+            " | SL: " + str.tostring(stopLoss) +
+            " | TP1: " + str.tostring(tp1) +
+            " | TP2: " + str.tostring(tp2) +
+            " | TP3: " + str.tostring(tp3) +
+            " | TF: " + timeframe.period +
+            " | Trade: " + riskLabel +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Buy: " + recBuy +
+            " | Strong.Buy: " + recBuyStrong +
+            " | Hold: " + recHold +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_E2Su
+    )
+
+    e2suEntryLocked := true
+    highPriorityAlertFired := true
+
+
+
+// 🔴 E2Su EXIT
+if e2suExit and e2suEntryLocked
+    lastBar_E2Su :=f_fireAlert(
+            true,
+            alertSymbol + " | E2Su 🟩| 🔴 EXIT ⛔\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EX.P: " + str.tostring(close) +
+            " | TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Sell: " + recSell +
+            " | Strong.Sell: " + recSellStrong +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_E2Su
+    )
+
+    e2suEntryLocked := false
+    highPriorityAlertFired := true
+
+//////////////////////////////////////////////////////
+//////////// E2So ALERTS ////////////////////////////
+/////////////////////////////////////////////////////
+if entry and not e2soEntryLocked
+    lastBar_E2SoEntry :=f_fireAlert(
+            true,
+            alertSymbol + " | E2So ⬜| 🟢 ENTRY\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EP: " + str.tostring(close) +
+            " | SL: " + str.tostring(stopLoss) +
+            " | TP1: " + str.tostring(tp1) +
+            " | TP2: " + str.tostring(tp2) +
+            " | TP3: " + str.tostring(tp3) +
+            " | TF: " + timeframe.period +
+            " | Trade: " + riskLabel +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Buy: " + recBuy +
+            " | Strong.Buy: " + recBuyStrong +
+            " | Hold: " + recHold +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_E2SoEntry
+    )
+
+    e2soEntryLocked := true
+    highPriorityAlertFired := true
+
+
+
+if e2soReentryState and not e2soReentryLocked
+    lastBar_E2SoReentry :=f_fireAlert(
+            true,
+            alertSymbol + " | E2So ⬜| 🟢 REENTRY ♻️\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EP: " + str.tostring(close) +
+            " | SL: " + str.tostring(stopLoss) +
+            " | TP1: " + str.tostring(tp1) +
+            " | TP2: " + str.tostring(tp2) +
+            " | TP3: " + str.tostring(tp3) +
+            " | TF: " + timeframe.period +
+            " | Trade: " + riskLabel + "\n" +
+            "Triggered: " + alertTime + "\n\n" +
+            "Analyst Buy: " + recBuy +
+            " | Strong.Buy: " + recBuyStrong +
+            " | Hold: " + recHold +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_E2SoReentry
+    )
+
+    e2soReentryLocked := true
+    highPriorityAlertFired := true
+
+
+
+if exitSignal and e2soEntryLocked
+    lastBar_E2SoExit :=f_fireAlert(
+            true,
+            alertSymbol + " | E2So ⬜| 🔴 EXIT ⛔\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EX.P: " + str.tostring(close) +
+            " | TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Sell: " + recSell +
+            " | Strong.Sell: " + recSellStrong +
+            " | (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_E2SoExit
+    )
+
+    e2soEntryLocked := false
+    e2soReentryLocked := false
+    highPriorityAlertFired := true
+
+
+
+// =====================================================
+// 🚨 IBO ALERTS (HELPER)
+// =====================================================
+
+// 🟢 IBO ENTRY
+if iboEntry
+    lastBar_IBO :=f_fireAlert(
+            true,
+            alertSymbol + " | IBO 🟦| 🟢 ENTRY\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EP: " + str.tostring(close) +
+            " | SL: " + str.tostring(stopLoss) +
+            " | TP1: " + str.tostring(tp1) +
+            " | TP2: " + str.tostring(tp2) +
+            " | TP3: " + str.tostring(tp3) +
+            " | TF: " + timeframe.period +
+            " | Trade: " + riskLabel +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Buy: " + recBuy +
+            " | Strong.Buy: " + recBuyStrong +
+            " | Hold: " + recHold +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_IBO
+    )
+    highPriorityAlertFired := true
+
+
+
+// 🔴 IBO EXIT
+if iboExit
+    lastBar_IBO :=f_fireAlert(
+            true,
+            alertSymbol + " | IBO 🟦| 🔴 EXIT ⛔\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EX.P: " + str.tostring(close) +
+            " | TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Sell: " + recSell +
+            " | Strong.Sell: " + recSellStrong +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_IBO
+    )
+    highPriorityAlertFired := true
+
+
+// =====================================================
+// 🚨 ZZ CORE ALERTS (HELPER)
+// =====================================================
+
+// 🟢 ZZ CORE ENTRY
+if zzCoreEntryVisible
+    lastBar_ZZCore :=f_fireAlert(
+            true,
+            alertSymbol + " | ZZ CORE 🟥| 🟢 ENTRY\n" +
+            alertHeader + " " + complianceLabel + "\n\n" +
+            "EP: " + str.tostring(close) +
+            " | SL: " + str.tostring(stopLoss) +
+            " | TP1: " + str.tostring(tp1) +
+            " | TP2: " + str.tostring(tp2) +
+            " | TP3: " + str.tostring(tp3) +
+            " | TF: " + timeframe.period +
+            " | Trade: " + riskLabel +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Buy: " + recBuy +
+            " | Strong.Buy: " + recBuyStrong +
+            " | Hold: " + recHold +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_ZZCore
+    )
+    highPriorityAlertFired := true
+
+
+
+
+// 🟡 ZZ CORE RE-ENTRY
+if zzCoreReEntryVisible
+    lastBar_ZZCore :=f_fireAlert(
+            true,
+            alertSymbol + " | ZZ CORE 🟥| 🟡 REENTRY ♻️\n" +
+            alertHeader + " " + complianceLabel + "\n\n" +
+            "EP: " + str.tostring(close) +
+            " | SL: " + str.tostring(stopLoss) +
+            " | TP1: " + str.tostring(tp1) +
+            " | TP2: " + str.tostring(tp2) +
+            " | TP3: " + str.tostring(tp3) +
+            " | TF: " + timeframe.period +
+            " | Trade: " + riskLabel +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Buy: " + recBuy +
+            " | Strong.Buy: " + recBuyStrong +
+            " | Hold: " + recHold +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_ZZCore
+    )
+    highPriorityAlertFired := true
+
+
+
+// 🔴 ZZ CORE EXIT
+if zzCoreExitVisible
+    lastBar_ZZCore :=f_fireAlert(
+            true,
+            alertSymbol + " | ZZ CORE 🟥| 🔴 EXIT ⛔\n" +
+            alertHeader + " " + complianceLabel + "\n\n" +
+            "EX.P: " + str.tostring(close) +
+            " | TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Sell: " + recSell +
+            " | Strong.Sell: " + recSellStrong +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_ZZCore
+    )
+    highPriorityAlertFired := true
+
+
+// --------------------------------------------------
+// 🚨 ZZ MAJOR V2 ALERTS (HELPER)
+// --------------------------------------------------
+
+// 🟢 ZZ MAJOR V2 — ENTRY
+if zzMajorV2EntryVisible
+    lastBar_ZZMajor :=f_fireAlert(
+            true,
+            alertSymbol + " | ZZ MAJOR V2 🟪| 🟢 ENTRY\n" +
+            alertHeader + " " + complianceLabel + "\n\n" +
+            "EP: " + str.tostring(close) +
+            " | SL: " + str.tostring(stopLoss) +
+            " | TP1: " + str.tostring(tp1) +
+            " | TP2: " + str.tostring(tp2) +
+            " | TP3: " + str.tostring(tp3) +
+            " | TF: " + timeframe.period +
+            " | Trade: " + riskLabel +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Buy: " + recBuy +
+            " | Strong.Buy: " + recBuyStrong +
+            " | Hold: " + recHold +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) + "\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: #ZZMajorV2\n\n" +
+            "🔗 " + chartLink,
+            lastBar_ZZMajor
+    )
+    highPriorityAlertFired := true
+
+
+
+// 🔴 ZZ MAJOR V2 — EXIT (HIGHEST X)
+if zzMajorV2ExitVisible
+    lastBar_ZZMajor :=f_fireAlert(
+            true,
+            alertSymbol + " | ZZ MAJOR V2 🟪| 🔴 EXIT ⛔ (Highest X)\n" +
+            alertHeader + " " + complianceLabel + "\n\n" +
+            "EX.P: " + str.tostring(close) +
+            " | TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Sell: " + recSell +
+            " | Strong.Sell: " + recSellStrong +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: #ZZMajorV2 #HighestX\n\n" +
+            "🔗 " + chartLink,
+            lastBar_ZZMajor
+    )
+    highPriorityAlertFired := true
+
+
+
+//////////////////////////////////////////////////////
+//////////// ZZ MINOR ALERTS (HELPER) ////////////////
+//////////////////////////////////////////////////////
+
+// 🟢 ZZ MINOR ENTRY
+if zzMinorEntryVisible
+    lastBar_ZZMinor :=f_fireAlert(
+            true,
+            alertSymbol + " | ZZ MINOR 🟨| 🟢 ENTRY\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EP: " + str.tostring(close) +
+            " | SL: " + str.tostring(stopLoss) +
+            " | TP1: " + str.tostring(tp1) +
+            " | TP2: " + str.tostring(tp2) +
+            " | TP3: " + str.tostring(tp3) +
+            " | TF: " + timeframe.period +
+            " | Trade: " + riskLabel +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Buy: " + recBuy +
+            " | Strong.Buy: " + recBuyStrong +
+            " | Hold: " + recHold +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_ZZMinor
+    )
+    highPriorityAlertFired := true
+
+
+
+// 🔴 ZZ MINOR EXIT
+if zzMinorExitVisible
+    lastBar_ZZMinor :=f_fireAlert(
+            true,
+            alertSymbol + " | ZZ MINOR 🟨| 🔴 EXIT ⛔\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "EX.P: " + str.tostring(close) +
+            " | TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+            "Analyst Sell: " + recSell +
+            " | Strong.Sell: " + recSellStrong +
+            " (" + recTotal + ")\n" +
+            "Consensus: " + str.tostring(consensusScore) +
+            "/100 " + consensusLabel + "\n\n" +
+            "Momentum: " + momentumScore + "\n" +
+            "Vol.state: " + pviStatus +
+            " | " + osobStatus +
+            " | " + obvStatus + "\n" +
+            "Trend: " + emaStackShort + "\n" +
+            "EZPScore: " + str.tostring(ezpScore) +
+            "/100 " + ezpRating + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "🔗 " + chartLink,
+            lastBar_ZZMinor
+    )
+    highPriorityAlertFired := true
+
+
+    
+
+// =====================================================
+// 🌙 BTST_PRO ALERTS (HELPER)
+// =====================================================
+
+// 🌙 BTST GAP CONFIRMED (NEXT-DAY SETUP)
+if ezpBTST_GAP_OK
+    lastBar_BTST :=f_fireAlert(
+            true,
+            alertSymbol + " | Yesterday BTST 🟪 ✔ GAP CONFIRMED\n" +
+            alertHeader + " " + complianceLabel + "\n\n" +
+            "Open ≥ Prev Close ✔\n" +
+            "Price Accepted ✔\n" +
+            "Exit (Trigger): " + str.tostring(btstEntryPrice) +
+            " | Triggered: " + alertTime + "\n" +
+            " | TF: " + timeframe.period + "\n\n" +
+            "Volume Confirmed ✔\n\n" +
+            "Trend: " + emaStackShort + "\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "📌 ACTION:\n" +
+            "• Hold/Exit: Current / Pullback\n" +
+            "• SL: Below Prev Close\n" +
+            "• Mode: Momentum Continuation\n\n" +
+            "🔗 " + chartLink,
+            lastBar_BTST
+    )
+    highPriorityAlertFired := true
+
+
+
+// 🌙 BTST_PRO ENTRY (INTRADAY TRIGGER)
+if ezpBTST_PRO
+    lastBar_BTST :=f_fireAlert(
+            true,
+            alertSymbol + " | BTST_PRO 🟪(" + btstMarketLabel + ")\n" +
+            alertHeader + " " + complianceLabel + "\n" +
+            "Entry (Trigger): " + str.tostring(btstEntryPrice) +
+            " | Triggered: " + alertTime + "\n" +
+            " | TF: " + timeframe.period + "\n" +
+            " | MorningHigh: " + str.tostring(btstMorningHigh) + "\n" +
+            "Vol > MorningMax ✔ | BuyPressure: " + bullBearLevel + "\n" +
+            "BullScore: " + str.tostring(bullScore) + "/100\n\n" +
+            "Price vs Moving Averages:\n" +
+            f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
+            f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+            "Market Zones:\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+            "Trade Risk:\n" +
+            f_entryRisk(emaATRCombo) + "\n\n" +
+            "Trend: " + emaStackShort + "\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
+            "Tags: " + ezpTags + "\n\n" +
+            "📌 PLAN:\n" +
+            "• Entry: " + str.tostring(btstEntryPrice) + " (Trigger Price)\n" +
+            "• SL: Below Morning High\n" +
+            "• Bias: Overnight Hold\n\n" +
+            "🔗 " + chartLink,
+            lastBar_BTST
+    )
+    highPriorityAlertFired := true
+
+
+
+// =====================================================
+// 🚨 UTC / DTC ALERTS (HELPER)
+// =====================================================
+
+// 🟢 UTC — BULLISH CROSS
+if utcBuy and not alert_UTC_Cross and not highPriorityAlertFired
+    lastBar_UTC :=f_fireAlert(
+            true,
+            alertSymbol + " | UTC | 🟢 BULLISH CROSS\n" +
+            alertHeader + "\n" +
+            "Price: " + str.tostring(close) + "\n" +
+            "TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+
+            "Price vs Moving Averages:\n" +
+            f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
+            f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+
+            "Market Zones:\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+
+            "Trade Risk:\n" +
+            f_entryRisk(emaATRCombo) + "\n\n" +
+
+            "Trend:\n" +
+            "Trend: " + emaStackShort + "\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
+
+            "🔗 " + chartLink,
+            lastBar_UTC
+    )
+    alert_UTC_Cross := true
+
+// 🔴 DTC — BEARISH CROSS
+if dtcSell and not alert_UTC_Cross and not highPriorityAlertFired
+    lastBar_UTC :=f_fireAlert(
+            true,
+            alertSymbol + " | DTC | 🔴 BEARISH CROSS\n" +
+            alertHeader + "\n" +
+            "Price: " + str.tostring(close) + "\n" +
+            "TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+
+            "Price vs Moving Averages:\n" +
+            f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
+            f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+
+            "Market Zones:\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+
+            "Trade Risk:\n" +
+            f_entryRisk(emaATRCombo) + "\n\n" +
+
+            "Trend:\n" +
+            "Trend: " + emaStackShort + "\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
+
+            "🔗 " + chartLink,
+            lastBar_UTC
+    )
+
+
+// 🟡 UTC — BEAR WEAKENING
+if utcBearWeakening and not alert_UTC_Entry  and not highPriorityAlertFired
+    lastBar_UTC :=f_fireAlert(
+            true,
+            alertSymbol + " | UTC | 🟡 Bear Weakening\n" +
+            alertHeader + "\n" +
+            "Price: " + str.tostring(close) + "\n" +
+            "TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+
+            "Price vs Moving Averages:\n" +
+            f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
+            f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+
+            "Market Zones:\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+
+            "Trade Risk:\n" +
+            f_entryRisk(emaATRCombo) + "\n\n" +
+
+            "Trend:\n" +
+            "Trend: " + emaStackShort + "\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
+
+            "🔗 " + chartLink,
+            lastBar_UTC
+    )
+
+
+// ♻️ UTC — BULL ZONE CONTINUATION (RE-ENTRY)
+if utcReentry and not  alert_UTC_Reentry and not highPriorityAlertFired
+    lastBar_UTC :=f_fireAlert(
+            true,
+            alertSymbol + " | UTC | ♻️ Bull Zone Continuation\n" +
+            alertHeader + "\n" +
+            "Price: " + str.tostring(close) + "\n" +
+            "TF: " + timeframe.period +
+            " | Triggered: " + alertTime + "\n\n" +
+
+            "Price vs Moving Averages:\n" +
+            f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
+            f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+
+            "Market Zones:\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+
+            "Trade Risk:\n" +
+            f_entryRisk(emaATRCombo) + "\n\n" +
+
+            "Trend:\n" +
+            "Trend: " + emaStackShort + "\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
+
+            "🔗 " + chartLink,
+            lastBar_UTC
+    )
+
+// 🔓 UTC LOCK RESET — when bull zone ends
+if not utcBullZone
+    alert_UTC_Entry := false
+
+
+
+// =====================================================
+// ⏰ FCPO EXPIRY ALERTS (CONFIRMED / NON-TRADING)
+// =====================================================
+
+// ⏰ 7 DAYS TO EXPIRY
+alert_FCPO :=f_fireConfirmedAlert(
+        fcpoExpiry7d and barstate.isconfirmed and ta.change(time("D")) != 0,
+        "⏰ FCPO EXPIRY WARNING (7 DAYS)\n" +
+        fcpoDisplay + "\n\n" +
+        "Contract expires in " + str.tostring(daysToExpiry) + " days\n" +
+        "📌 Action: Prepare rollover",
+        alert_FCPO
+    )
+
+// ⚠️ 3 DAYS TO EXPIRY
+alert_FCPO :=f_fireConfirmedAlert(
+        fcpoExpiry3d and barstate.isconfirmed and ta.change(time("D")) != 0,
+        "⚠️ FCPO EXPIRY WARNING (3 DAYS)\n" +
+        fcpoDisplay + "\n\n" +
+        "Contract expires in " + str.tostring(daysToExpiry) + " days\n" +
+        "📌 Action: Reduce exposure",
+        alert_FCPO
+    )
+
+// 🚨 1 DAY TO EXPIRY
+alert_FCPO :=f_fireConfirmedAlert(
+        fcpoExpiry1d and barstate.isconfirmed and ta.change(time("D")) != 0,
+        "🚨 FCPO EXPIRY TOMORROW\n" +
+        fcpoDisplay + "\n\n" +
+        "Final trading day approaching\n" +
+        "📌 Action: CLOSE or ROLLOVER NOW",
+        alert_FCPO
+    )
+
+

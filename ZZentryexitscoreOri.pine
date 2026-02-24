@@ -124,6 +124,7 @@ groupMaster = '🔌 Master Control'
 ZZ_MASTER_ON = input.bool(true, 'Enable ZZ Master Switch', group = groupMaster)
 
 showScoreTable = input.bool(true, "Show ZZ Score Table", group = groupMaster)
+showDiagnostics = input.bool(false, "Diagnostics row", group = groupMaster)
 
 compactTable   = input.bool(false, "ZZ Score compact mode", group = groupMaster)
 
@@ -187,7 +188,6 @@ string fcpoContract =
      : syminfo.ticker
 
 // Extract base symbol (FCPO)
-string fcpoBase = "FCPO"
 
 // FCPO display name (used in alerts)
 string fcpoDisplay = isFCPO ? fcpoContract : syminfo.ticker
@@ -263,7 +263,6 @@ float d_rng = na(dH) or na(dL) ? na : math.max(dH - dL, syminfo.mintick)
 
 // --- Metrics
 // 1) Trend score: close position in range (C near H = strong trend)
-float d_closePos = na(d_rng) ? na : (dC - dL) / d_rng
 
 
 // ===================================================== 
@@ -772,7 +771,6 @@ var int iLast = 0
 var float pLast = 0
 var bool isHighLast = true // otherwise the last pivot is a low pivot
 var int linesCount = 0
-var bool isNewPivot = false
 
 pivotFound(dev, isHigh, index, price) =>
     if index <= 0 or bar_index - index > 1000
@@ -966,6 +964,7 @@ zzMajorV2RedX = zzm2_wma5h >= zzm2_upperBB and high >= zzm2_upperBB
 // -------------------------------------------------
 var bool  zzMajorV2InTrade = false
 var float zzMajorV2Peak    = na
+var bool  zzMajorV2Armed   = false
 
 zzMajorV2Entry = false
 zzMajorV2Exit  = false
@@ -976,21 +975,27 @@ zzMajorV2Exit  = false
 if ZZ_ON and showZZMajorV2Signal and zzMajorV2Entry_raw and not zzMajorV2InTrade
     zzMajorV2InTrade := true
     zzMajorV2Peak    := na
+    zzMajorV2Armed   := false
     zzMajorV2Entry   := true
 
 // -------------------------------------------------
 // 📈 TRACK HIGHEST HIGH DURING RED-X
 // -------------------------------------------------
 if zzMajorV2InTrade and zzMajorV2RedX
-    zzMajorV2Peak := na(zzMajorV2Peak) ? high : math.max(zzMajorV2Peak, high)
+    zzMajorV2Peak  := na(zzMajorV2Peak) ? high : math.max(zzMajorV2Peak, high)
+    zzMajorV2Armed := true
 
 // -------------------------------------------------
-// 🔴 EXIT — AFTER RED-X ENDS (HIGHEST X)
+// 🔴 EXIT — PULLBACK FROM RED-X PEAK
 // -------------------------------------------------
-if zzMajorV2InTrade and not zzMajorV2RedX and zzMajorV2RedX[1] and not na(zzMajorV2Peak)
+float zzMajorV2PullbackLevel = na(zzMajorV2Peak) ? na : zzMajorV2Peak * (1.0 - zzV2PullbackPct / 100.0)
+bool zzMajorV2PullbackExit = zzMajorV2InTrade and zzMajorV2Armed and not na(zzMajorV2PullbackLevel) and close <= zzMajorV2PullbackLevel
+
+if zzMajorV2PullbackExit
     zzMajorV2Exit    := true
     zzMajorV2InTrade := false
     zzMajorV2Peak    := na
+    zzMajorV2Armed   := false
 
 // =====================================================
 // 👁️ VISIBILITY (V2 TOGGLES — FIXED)
@@ -1016,7 +1021,7 @@ plotshape(
 
 plotshape(
     zzMajorV2ExitVisible,
-    title = "ZZ Major V2 Exit (Highest X)",
+    title = "ZZ Major V2 Exit (Pullback from Peak)",
     text  = "exit",
     style = shape.labeldown,
     location = location.abovebar,
@@ -2266,8 +2271,6 @@ if SESSION_ON and isBursa and showDay and hour(time, tz) == 14 and minute(time, 
 // ==================================================
 groupUS = '🇺🇸 US Settings'
 
-vmU = input.float(2.0, 'Volume Multiplier', group = groupUS)
-minVU = input.int(30000, 'Minimum Volume', group = groupUS)
 
 usOpenCol = input.color(color.green, 'Open Line', group = groupUS)
 usReopenCol = input.color(color.orange, 'Reopen Line', group = groupUS)
@@ -2380,7 +2383,6 @@ daysToExpiry =
 
 
 // 🏭 SECTOR (SAFE)
-string sectorName = na(syminfo.sector) ? "N/A" : syminfo.sector
 
 // =====================
 // 🎯 RISK / REWARD SETTINGS (ALERT ONLY)
@@ -2819,6 +2821,7 @@ if isCrypto and ta.change(time("D")) != 0
     e2soReentryLocked := false
     e2suEntryLocked   := false
     zzMajorV2InTrade  := false
+    zzMajorV2Armed    := false
 
 // =====================================================
 // 🚨 ALERT LOCKS — ONE PER ENGINE // 🔒 LOCK / STATE VARIABLES
@@ -2888,15 +2891,17 @@ if not e2soEntryLocked
 if emaStackShort == "Bear"
     e2soReentryLocked := false
 // =====================
-// 🔒 E2So REENTRY STATE (FIXED)
+// 🔒 E2So REENTRY STATE
 // =====================
-e2soReentryState = ZZ_ON and e2soEntryLocked and not e2soReentryLocked and not exitSignal and not na(lastBar_E2SoEntry) and bar_index > lastBar_E2SoEntry and pullbackCond and trendStillValid // must already be in trade// only once per trade leg // exit has priority // entry must have occurred// not same candle
-//e2soReentryState = e2soEntryLocked and  not e2soReentryLocked and  pullbackCond and trendStillValid and not exitSignal               // must already be in trade // only once per leg // exit has priority 
-
-//e2soReentryState = reentry and not e2soEntryLocked and not e2soReentryLocked   //old condition
-e2soReentryState := e2soEntryLocked and bar_index > lastBar_E2SoEntry and pullbackCond and trendStillValid and not exitSignal
-
-//e2soReentryState := e2soEntryLocked and pullbackCond and trendStillValid  //new condition 
+e2soReentryState =
+     ZZ_ON and
+     e2soEntryLocked and
+     not e2soReentryLocked and
+     not exitSignal and
+     not na(lastBar_E2SoEntry) and
+     bar_index > lastBar_E2SoEntry and
+     pullbackCond and
+     trendStillValid
 
 
 
@@ -2911,7 +2916,6 @@ if not trendStillValid
 // =====================================================
 // 🐂 Major Bull Score (All-time Major Candle)
 // =====================================================
-var string mb_majorBullText = ""
 
 // --- Detect earliest bar
 var float mb_firstOpen = na
@@ -3035,7 +3039,6 @@ else
     else
         weeklyMaruScore := "E"
 
-string weeklyMaruLine = "\nWeekly MARUBOZU: " + weeklyMaruScore + " (" + str.tostring(weeklyMaruPct, "#.##") + "%)"
 
 // =====================================================
 // 🟪 MONTHLY MARUBOZU SCORE
@@ -3071,7 +3074,6 @@ else
     else
         monthlyMaruScore := "E"
 
-string monthlyMaruLine ="\nMonthly MARUBOZU: " +monthlyMaruScore +" (" + str.tostring(monthlyMaruPct, "#.##") + "%)"
 
 // =====================================================
 // 🟧 YEARLY MARUBOZU SCORE
@@ -3107,7 +3109,6 @@ else
     else
         yearlyMaruScore := "E"
 
-string yearlyMaruLine ="\nYearly MARUBOZU: " +yearlyMaruScore +" (" + str.tostring(yearlyMaruPct, "#.##") + "%)"
 
 // =====================================================
 // 🟩 ZZ INTRADAY (SESSION-BASED) — v6 SAFE (FIXED)
@@ -3229,16 +3230,19 @@ var bool _lastCompact = false
 var bool _firstRun    = true
 var string _lastTablePos  = ""
 var string _lastTextSize  = ""
+var bool _lastDiagnostics = false
 
 bool tableNeedsRebuild =
      _firstRun or
      _lastCompact != compactTable or
      _lastTablePos != tablePositionInput or
-     _lastTextSize != tableTextSizeInput
+     _lastTextSize != tableTextSizeInput or
+     _lastDiagnostics != showDiagnostics
 
 _lastCompact  := compactTable
 _lastTablePos := tablePositionInput
 _lastTextSize := tableTextSizeInput 
+_lastDiagnostics := showDiagnostics
 _firstRun     := false
 
 
@@ -3246,16 +3250,11 @@ _firstRun     := false
 var table zzScoreTable = na
 
 if na(zzScoreTable) or tableNeedsRebuild
-    zzScoreTable := table.new(tablePos,2,compactTable ? 9 : 16,frame_color = color.new(color.gray, 40),frame_width = 1)
+    zzScoreTable := table.new(tablePos,2,compactTable ? 9 : (showDiagnostics ? 17 : 16),frame_color = color.new(color.gray, 40),frame_width = 1)
 
 // =====================
 // 📐 SCORE TABLE ROW MAP (FIXED)
 // =====================
-int ROW_HEADER        = 0
-int ROW_CONSENSUS     = 1
-int ROW_MOMENTUM      = 2
-int ROW_EZP_SCORE     = 3
-int ROW_EZP_RATING    = 4
 
 // --- Intraday & Phase Trends
 int ROW_INTRADAY_TREND = compactTable ? na : 5
@@ -3267,10 +3266,11 @@ int ROW_DAILY_MARU     = compactTable ? 5 : 8
 int ROW_WEEKLY_MARU    = compactTable ? na : 9
 int ROW_MONTHLY_MARU   = compactTable ? na : 10
 int ROW_YEARLY_MARU    = compactTable ? na : 11
-int ROW_UTC_BULL       = compactTable ? 6 : 12
-int ROW_DTC_BEAR       = compactTable ? 7 : 13
-int ROW_MAJOR_BULL     = compactTable ? 8 : 14
-int ROW_TREND_STACK    = compactTable ? na : 15
+int ROW_DIAGNOSTICS    = compactTable ? na : 12
+int ROW_UTC_BULL       = compactTable ? 6 : 13
+int ROW_DTC_BEAR       = compactTable ? 7 : 14
+int ROW_MAJOR_BULL     = compactTable ? 8 : 15
+int ROW_TREND_STACK    = compactTable ? na : 16
 
 
 // =====================================================
@@ -3294,8 +3294,6 @@ f_gradeTierColor(string grade) =>
 // 🎨 DYNAMIC SCORE COLORS
 // =====================
 
-color intradayTrendCol = f_gradeColor(dailyTrendScore)
-color marubozuCol = f_gradeColor(dailyMaruScore)
 color majorBullCol     = f_gradeColor(mb_majorScore)
 color amTrendCol = f_gradeColor(amTrendGrade)
 color pmTrendCol = f_gradeColor(pmTrendGrade)
@@ -3305,7 +3303,7 @@ color pmTrendCol = f_gradeColor(pmTrendGrade)
 
 
 if ZZ_ON and showScoreTable and (barstate.islast or barstate.isfirst)
-    int lastRow = compactTable ? 6 : 11
+    int lastRow = compactTable ? 8 : (showDiagnostics ? 16 : 15)
     table.clear(zzScoreTable, 0, 0, 1, lastRow)
 
 
@@ -3377,6 +3375,11 @@ if ZZ_ON and showScoreTable and (barstate.islast or barstate.isfirst)
         table.cell(zzScoreTable,0,ROW_YEARLY_MARU,"Yearly Marubozu",text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
         table.cell(zzScoreTable,1,ROW_YEARLY_MARU,yearlyMaruScore + " (" + str.tostring(yearlyMaruPct, "#.##") + "%)",text_color = f_gradeColor(yearlyMaruScore),bgcolor = tblBgCol,text_size = tblTextSize)
 
+
+    if showDiagnostics and not na(ROW_DIAGNOSTICS)
+        string diagnosticsTxt = "Type=" + marketType + " | Session=" + sessionLabel + " | Branch=" + market + " | ZZ=" + str.tostring(ZZ_ON) + " ELocked=" + str.tostring(e2soEntryLocked) + " RLocked=" + str.tostring(e2soReentryLocked) + " Exit=" + str.tostring(exitSignal) + " Pullback=" + str.tostring(pullbackCond)
+        table.cell(zzScoreTable,0,ROW_DIAGNOSTICS,"Diagnostics",text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
+        table.cell(zzScoreTable,1,ROW_DIAGNOSTICS,diagnosticsTxt,text_color = tblTextCol,bgcolor = tblBgCol,text_size = tblTextSize)
 
 
     // ---- MAJOR BULL (ALWAYS SHOWN)
@@ -4120,5 +4123,4 @@ alert_FCPO :=f_fireConfirmedAlert(
         "📌 Action: CLOSE or ROLLOVER NOW",
         alert_FCPO
     )
-
 

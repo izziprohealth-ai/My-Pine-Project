@@ -2039,6 +2039,46 @@ ema6Weak = ema6 <= ema6[1]
 // --- MACD
 [macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
 macdWeak = macdLine < signalLine or ta.crossunder(macdLine, signalLine)
+
+// =====================================================
+// 🟦 IBO TRADE PRECISION LAYER (Buy 1 / Buy 2 style)
+// =====================================================
+iboDcLen = input.int(13, 'IBO Donchian Length', minval = 2, group = groupEngine)
+iboBbLen = input.int(20, 'IBO Bollinger Length', minval = 5, group = groupEngine)
+iboBbMult = input.float(1.0, 'IBO Bollinger Multiplier', minval = 0.1, step = 0.1, group = groupEngine)
+iboVolStrongMult = input.float(1.5, 'IBO Strong Volume Multiplier', minval = 1.0, step = 0.1, group = groupEngine)
+showIBOBuyLevels = input.bool(true, 'Show IBO Buy 1 / Buy 2 labels', group = groupEngine)
+
+iboDcUpper = ta.highest(high, iboDcLen)
+iboDrawPoint = close > iboDcUpper[1]
+
+iboBbBasis = ta.sma(close, iboBbLen)
+iboBbDev = ta.stdev(close, iboBbLen)
+iboBbUpper = iboBbBasis + iboBbDev * iboBbMult
+
+iboVolMA5 = ta.sma(volume, 5)
+iboVolPass = volume > iboVolMA5
+iboVolStrong = volume > iboVolMA5 * iboVolStrongMult and close > open
+
+iboRsvLen = 9
+iboSigLen = 3
+iboHighest = ta.highest(high, iboRsvLen)
+iboLowest = ta.lowest(low, iboRsvLen)
+iboRange = math.max(iboHighest - iboLowest, syminfo.mintick)
+iboRsv = 100 * ((close - iboLowest) / iboRange)
+iboK = ta.rma(iboRsv, iboSigLen)
+iboD = ta.rma(iboK, iboSigLen)
+iboJ = 3 * iboK - 2 * iboD
+
+iboEma5 = ta.ema(close, 5)
+iboEma10 = ta.ema(close, 10)
+iboEma21 = ta.ema(close, 21)
+iboTrendAligned = iboEma5 >= iboEma10 and close >= iboEma21
+iboMomentumAligned = iboJ > iboD
+
+iboBuy1 = iboDrawPoint and iboMomentumAligned and iboTrendAligned and close >= iboBbUpper and iboVolPass
+iboBuy2 = iboDrawPoint and iboMomentumAligned and iboTrendAligned and close >= iboBbUpper and iboVolStrong
+
 // =====================
 // 🔴 SHARED EXIT CORE (E2Su / IBO)
 // =====================
@@ -2063,7 +2103,8 @@ iboEntry =
      iboRawBreakout and
      iboStructureOK and
      iboMomentumOK and
-     iboConfirm
+     iboConfirm and
+     iboBuy1
 
 // --- Exit Logic
 // --- Candle body size (%)
@@ -2089,6 +2130,10 @@ plot(ZZ_ON and showAllSignals and iboDD_ON ? ema18 : na, title = 'IBO EMA18', co
 // 🔔 ENTRY / EXIT SIGNALS LABELS
 // =====================================================
 plotshape(ZZ_ON and iboDD_ON and iboEntry, title = 'IBO Entry', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
+
+plotshape(ZZ_ON and iboDD_ON and showIBOBuyLevels and iboBuy1, title = 'IBO Buy 1 Precision', text = 'buy 1', style = shape.labelup, location = location.belowbar, color = color.new(color.green, 0), textcolor = color.black, size = size.tiny, force_overlay = true, editable = true)
+
+plotshape(ZZ_ON and iboDD_ON and showIBOBuyLevels and iboBuy2, title = 'IBO Buy 2 Precision', text = 'buy 2', style = shape.labelup, location = location.belowbar, color = color.new(color.yellow, 0), textcolor = color.black, size = size.tiny, force_overlay = true, editable = true)
 
 plotshape(ZZ_ON and iboDD_ON and iboExit, title = 'IBO Exit', text = 'exit', style = shape.labeldown, location = location.abovebar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
 

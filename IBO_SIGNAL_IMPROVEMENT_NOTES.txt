@@ -1,0 +1,51 @@
+IBO Signal Improvement Notes (ZZentryexitscoreOri.pine)
+=======================================================
+
+Objective
+---------
+Improve IBO signal precision/reliability in ZZentryexitscoreOri.pine by borrowing the proven Buy 1 / Buy 2 confirmation style from IBOtrade.pine.
+
+What was improved
+-----------------
+1) Added a dedicated "IBO Trade Precision Layer" in ZZentryexitscoreOri.pine.
+   - Reused the same core logic style from IBOtrade:
+     * Donchian breakout confirmation (close > previous Donchian upper)
+     * Momentum confirmation using J > D (KDJ-style smoothing)
+     * Trend alignment with EMA5 >= EMA10 and close >= EMA21
+     * Bollinger breakout confirmation (close >= upper band)
+     * Volume filters split into normal and strong volume
+
+2) Added explicit precision signal states:
+   - iboBuy1: Standard quality breakout confirmation
+   - iboBuy2: Strong breakout confirmation (higher volume requirement)
+
+3) Tightened current IBO entry filter:
+   - Existing iboEntry now requires iboBuy1 in addition to your prior IBO conditions.
+   - This reduces weak/early breakouts and helps avoid low-quality trigger bars.
+
+4) Added optional labels to visualize quality:
+   - buy 1 label for confirmed precision entry bars
+   - buy 2 label for stronger conviction bars
+   - Controlled via input: "Show IBO Buy 1 / Buy 2 labels"
+
+New tunable inputs
+------------------
+- IBO Donchian Length
+- IBO Bollinger Length
+- IBO Bollinger Multiplier
+- IBO Strong Volume Multiplier
+- Show IBO Buy 1 / Buy 2 labels
+
+Expected impact
+---------------
+- Better signal quality by requiring confluence (structure + momentum + trend + volatility + volume).
+- More reliable entries in trending markets.
+- Clear separation between normal and strong IBO setups.
+
+Practical usage tip
+-------------------
+- For stricter filtering (fewer but cleaner signals):
+  increase "IBO Strong Volume Multiplier" and/or increase Bollinger multiplier.
+- For slightly earlier entries (more frequent signals):
+  reduce Bollinger multiplier modestly.
+

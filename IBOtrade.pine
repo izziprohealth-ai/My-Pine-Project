@@ -1,0 +1,144 @@
+//@version=6
+indicator('IBO trade', shorttitle = 'IBO trade', overlay = true)
+
+// Inputs for EMA
+len1 = input.int(9, minval = 1, title = 'EMA Short')
+len2 = input.int(20, minval = 1, title = 'EMA Long')
+out1 = ta.ema(close, len1)
+out2 = ta.ema(close, len2)
+
+// Plotting EMA zones
+p1 = plot(out1, color = color.new(color.blue, 100), title = 'Upperzone', force_overlay = true)
+p2 = plot(out2, color = color.new(color.blue, 100), title = 'Lowerzone', force_overlay = true)
+fill(p1, p2, color = out1 > out2 ? color.new(color.green, 60) : color.new(color.red, 60), title = 'Trendzone')
+
+// Life Line EMA
+len60 = input.int(60, minval = 1, title = 'Life Line')
+shortema2 = ta.ema(close, len60)
+plot(shortema2, color = color.green, linewidth = 2, title = 'Life Line', force_overlay = true)
+
+// Long EMA
+len200 = input.int(200, minval = 1, title = 'Long EMA')
+longema = ta.sma(close, len200)
+plot(longema, color = color.purple, linewidth = 2, title = 'Long EMA', force_overlay = true)
+
+// Donchian Channel
+length = input.int(13, minval = 1, title = 'Donchian Channel Length')
+lower = ta.lowest(length)
+upper = ta.highest(length)
+DrawPoint = close > upper[1]
+
+// Plot Donchian Channel Breaks
+barcolor(DrawPoint ? color.lime : na)
+
+// Bollinger Bands
+basisbb = ta.sma(close, 20)
+devbb = ta.stdev(close, 20)
+upperbb = basisbb + devbb
+lowerbb = basisbb - devbb
+volu1 = ta.sma(volume, 5)
+volu2 = volume > volu1
+volu3 = volume > volu1 * 1.5 and close > open
+
+// Plot Bollinger Band Signals
+buybb = volu3 and close > upperbb[1]
+barcolor(buybb ? color.yellow : na)
+
+// Pullback breakout (using custom smoothing function)
+ilong = 9
+isig = 3
+
+bcwsma(s, l, m) =>
+    var float _bcwsma = na // Declare type explicitly
+    _bcwsma := (m * s + (l - m) * nz(_bcwsma[1])) / l
+    _bcwsma
+
+c = close
+h = ta.highest(high, ilong)
+l = ta.lowest(low, ilong)
+RSV = 100 * ((c - l) / (h - l))
+pK = bcwsma(RSV, isig, 1)
+pD = bcwsma(pK, isig, 1)
+pJ = 3 * pK - 2 * pD
+
+// Stochastic
+periodK = 14
+periodD = 3
+smoothK = 3
+k = ta.sma(ta.stoch(close, high, low, periodK), smoothK)
+d = ta.sma(k, periodD)
+
+// Important Signals
+buy1 = DrawPoint and pJ > pD and ta.ema(close, 5) >= ta.ema(close, 10) and close >= ta.ema(close, 21) and close >= upperbb and volu2
+plotshape(buy1, style = shape.labelup, location = location.belowbar, color = color.rgb(0, 255, 8), text = 'ibo', textcolor=color.new(#000000, 0), title = 'Buy Signal', force_overlay = true)
+
+buy2 = DrawPoint and pJ > pD and ta.ema(close, 5) >= ta.ema(close, 10) and close >= ta.ema(close, 21) and close >= upperbb and volu3
+bgcolor(buy2 ? color.new(color.red, 90) : na)
+plotshape(buy2, style = shape.labelup, location = location.belowbar, color = color.rgb(251, 255, 0), text = 'ibo', textcolor=color.new(#000000, 0), title = 'Buy Signal', force_overlay = true)
+
+// DMI & ADX
+len = 14
+lensig = 14
+up2 = ta.change(high)
+down2 = -ta.change(low)
+plusDM = up2 > down2 and up2 > 0 ? up2 : 0
+minusDM = down2 > up2 and down2 > 0 ? down2 : 0
+trur = ta.rma(ta.tr(true), len)
+plus = 100 * ta.rma(plusDM, len) / trur
+minus = 100 * ta.rma(minusDM, len) / trur
+sum = plus + minus
+adx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), lensig)
+
+daily_gc1 = request.security(syminfo.tickerid, 'D', plus > 25)
+bgcolor(daily_gc1 ? color.new(color.yellow, 85) : na)
+
+goldencross = plus > minus and adx > 20
+daily_gc2 = request.security(syminfo.tickerid, 'D', goldencross)
+bgcolor(daily_gc2 ? color.new(color.aqua, 95) : na)
+
+// RSI
+len5 = 14
+up5 = ta.rma(close > close[1] ? close - close[1] : 0, len5)
+down5 = ta.rma(close < close[1] ? close[1] - close : 0, len5)
+rsi = down5 == 0 ? 100 : up5 == 0 ? 0 : 100 - 100 / (1 + up5 / down5)
+
+src6 = close
+len6 = 70
+len7 = 31
+isup = rsi > len6
+isdown = rsi < len7
+barcolor(isdown ? color.red : na)
+
+//=====================================================
+// 🔔 IBO TELEGRAM WEBHOOK ALERT SYSTEM
+// =====================================================
+
+// --- MASTER SIGNAL ---
+anySignal = buy1 or buy2
+
+
+// =====================================================
+// ✅ ALERT CONDITIONS (Manual Selection Support)
+// =====================================================
+
+alertcondition(buy1,title = "IBO BUY",message = "IBO BUY | {{ticker}} | Price: {{close}}")
+
+alertcondition(buy2,title = "IBO STRONG BUY",message = "IBO STRONG BUY | {{ticker}} | Price: {{close}}")
+
+alertcondition(anySignal,title = "IBO ANY SIGNAL",message = "IBO SIGNAL | {{ticker}} | Price: {{close}}")
+
+
+// =====================================================
+// ✅ AUTO WEBHOOK ALERT (Telegram / GAS)
+// =====================================================
+
+if anySignal and barstate.isconfirmed
+    alert(
+        '{"message":"🚀 IBO SIGNAL | ' +
+        syminfo.ticker +
+        ' | TF: ' + timeframe.period +
+        ' | Price: ' +
+        str.tostring(close) +
+        '"}',
+        alert.freq_once_per_bar_close
+    )

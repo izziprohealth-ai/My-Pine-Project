@@ -1,0 +1,373 @@
+//@version=6
+strategy("ZZ EntryExit V2 Compact Standalone Strategy", overlay=true, pyramiding=20, initial_capital=100000)
+
+// =====================================================
+// 🔌 MASTER
+// =====================================================
+masterOn       = input.bool(true,  "Enable Master Signals")
+showAllSignals = input.bool(true,  "Show All Labels")
+
+// =====================================================
+// 🎛️ SIGNAL TOGGLES (ENTRY / RE-ENTRY / EXIT)
+// =====================================================
+grpE2So = "E2So ⬜"
+e2soOn        = input.bool(true,  "Enable E2So", group=grpE2So)
+e2soEntryOn   = input.bool(true,  "Entry", group=grpE2So)
+e2soReEntryOn = input.bool(true,  "Re-entry", group=grpE2So)
+e2soExitOn    = input.bool(true,  "Exit", group=grpE2So)
+
+grpE2Su = "E2Su 🟩"
+e2suOn        = input.bool(true,  "Enable E2Su", group=grpE2Su)
+e2suEntryOn   = input.bool(true,  "Entry", group=grpE2Su)
+e2suReEntryOn = input.bool(true,  "Re-entry", group=grpE2Su)
+e2suExitOn    = input.bool(true,  "Exit", group=grpE2Su)
+
+grpIBO = "IBO 🟦"
+iboOn      = input.bool(true,  "Enable IBO", group=grpIBO)
+iboEntryOn = input.bool(true,  "Entry", group=grpIBO)
+iboExitOn  = input.bool(true,  "Exit", group=grpIBO)
+
+grpCore = "ZZ Core 🟥"
+coreOn        = input.bool(true,  "Enable ZZ Core", group=grpCore)
+coreEntryOn   = input.bool(true,  "Entry", group=grpCore)
+coreReEntryOn = input.bool(true,  "Re-entry", group=grpCore)
+coreExitOn    = input.bool(true,  "Exit", group=grpCore)
+
+grpMajorV2 = "ZZ Major V2 🟪"
+majorV2On      = input.bool(true, "Enable ZZ Major V2", group=grpMajorV2)
+majorV2EntryOn = input.bool(true, "Entry", group=grpMajorV2)
+majorV2ExitOn  = input.bool(true, "Exit", group=grpMajorV2)
+zzV2PullbackPct = input.float(3.0, "Exit Pullback % from Peak", step=0.1, group=grpMajorV2)
+
+grpMinor = "ZZ Minor 🟨"
+minorOn      = input.bool(true, "Enable ZZ Minor", group=grpMinor)
+minorEntryOn = input.bool(true, "Entry", group=grpMinor)
+minorExitOn  = input.bool(true, "Exit", group=grpMinor)
+minorDepth   = input.int(5, "Pivot Depth", minval=1, group=grpMinor)
+
+grpEW = "ZZ Subwave 🟩"
+ewOn      = input.bool(true, "Enable ZZ Subwave", group=grpEW)
+ewEntryOn = input.bool(true, "Entry", group=grpEW)
+ewExitOn  = input.bool(true, "Exit", group=grpEW)
+zzPercent  = input.float(0.5, "Min % Change", step=0.1, minval=0.1, group=grpEW)
+
+// =====================================================
+// 🧮 SHARED CALCULATIONS (extracted from master V2)
+// =====================================================
+ema10 = ta.ema(close, 10)
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+
+fastMA = ta.ema(close, 12)
+slowMA = ta.ema(close, 26)
+macd2 = fastMA - slowMA
+signal = ta.ema(macd2, 9)
+hist2 = macd2 - signal
+mom2 = close - close[10]
+ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+
+lengthCCI = 20
+cciMA = ta.sma(close, lengthCCI)
+cci = (close - cciMA) / (0.015 * ta.dev(close, lengthCCI))
+
+smoothK = 3
+smoothD = 3
+lengthRSI = 14
+lengthStoch = 14
+rsiBase = ta.rsi(close, lengthRSI)
+k = ta.sma(ta.stoch(rsiBase, rsiBase, rsiBase, lengthStoch), smoothK)
+d = ta.sma(k, smoothD)
+exitStoch = ta.crossunder(k, d) and k > 70 and d > 70
+exitCCI = cci > 200 and exitStoch
+
+lengthBB = 20
+mult = 2.0
+midBB2 = ta.sma(close, lengthBB)
+devBB2 = mult * ta.stdev(close, lengthBB)
+upperBB = midBB2 + devBB2
+
+dcUpper = ta.highest(high, 20)
+dcLower = ta.lowest(low, 20)
+dcMid2 = math.avg(dcUpper, dcLower)
+avgMid = math.avg(midBB2, dcMid2)
+
+volMA20E2So = ta.sma(volume, 20)
+volMAIBO = ta.sma(volume, 20)
+
+// =====================================================
+// ⬜ E2So (entry / re-entry / exit)
+// =====================================================
+e2soEntry = masterOn and e2soOn and e2soEntryOn and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20E2So
+e2soReentry = masterOn and e2soOn and e2soReEntryOn and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20E2So
+e2soExit = masterOn and e2soOn and e2soExitOn and (exitCCI or (high >= upperBB and exitStoch))
+
+// =====================================================
+// 🟩 E2Su (entry / re-entry / exit)
+// =====================================================
+midBB_E2Su = ta.sma(close, 20)
+devBB_E2Su = 1.0 * ta.stdev(close, 20)
+rbbOsc_E2Su = (close - midBB_E2Su) / devBB_E2Su * 100
+
+var bool e2suInTrade = false
+var bool e2suReUsed = false
+if rbbOsc_E2Su < -100
+    e2suInTrade := false
+    e2suReUsed := false
+
+e2suEntry = masterOn and e2suOn and e2suEntryOn and ta.crossover(macd2, signal) and rbbOsc_E2Su > -100 and not e2suInTrade
+e2suReEntry = masterOn and e2suOn and e2suReEntryOn and ta.crossover(macd2, signal) and rbbOsc_E2Su > 0 and not e2suInTrade and not e2suReUsed
+softExit = ta.crossunder(macd2, signal) and rbbOsc_E2Su > 0
+hardExit = ta.crossunder(rbbOsc_E2Su, -100)
+e2suExit = masterOn and e2suOn and e2suExitOn and e2suInTrade and (softExit or hardExit)
+if e2suEntry
+    e2suInTrade := true
+if e2suReEntry
+    e2suInTrade := true
+    e2suReUsed := true
+if e2suExit
+    e2suInTrade := false
+
+// =====================================================
+// 🟦 IBO (entry / exit)
+// =====================================================
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+iboRawBreakout = high > ta.highest(high, 1)[1] and volume > volMAIBO
+iboStructureOK = close > ema20
+iboMomentumOK = macd2 > signal
+ema6 = ta.ema(close, 6)
+ema18 = ta.ema(close, 18)
+iboConfirm = ema6 > ema18 and macdLine > signalLine
+
+iboDcUpper = ta.highest(high, 13)
+iboDrawPoint = close > iboDcUpper[1]
+iboBbBasis = ta.sma(close, 20)
+iboBbDev = ta.stdev(close, 20)
+iboBbUpper = iboBbBasis + iboBbDev
+iboVolMA5 = ta.sma(volume, 5)
+iboVolPass = volume > iboVolMA5
+iboHighest = ta.highest(high, 9)
+iboLowest = ta.lowest(low, 9)
+iboRange = math.max(iboHighest - iboLowest, syminfo.mintick)
+iboRsv = 100 * ((close - iboLowest) / iboRange)
+iboK = ta.rma(iboRsv, 3)
+iboD = ta.rma(iboK, 3)
+iboJ = 3 * iboK - 2 * iboD
+iboEma5 = ta.ema(close, 5)
+iboEma10 = ta.ema(close, 10)
+iboEma21 = ta.ema(close, 21)
+iboTrendAligned = iboEma5 >= iboEma10 and close >= iboEma21
+iboMomentumAligned = iboJ > iboD
+iboBuy1 = iboDrawPoint and iboMomentumAligned and iboTrendAligned and close >= iboBbUpper and iboVolPass
+
+iboEntry = masterOn and iboOn and iboEntryOn and iboRawBreakout and iboStructureOK and iboMomentumOK and iboConfirm and iboBuy1
+iboExit = masterOn and iboOn and iboExitOn and ta.crossunder(macdLine, signalLine) and volume < volMAIBO and macdLine > 0
+
+// =====================================================
+// 🟥 ZZ Core (entry / re-entry / exit)
+// =====================================================
+majorLen = 55
+minorLen = 21
+reEntryCooldown = input.int(3, "Core Re-entry cooldown", minval=1, group=grpCore)
+
+hh = ta.highest(high, majorLen)
+ll = ta.lowest(low, majorLen)
+marketUp = close > ll and hh > hh[1]
+marketDown = close < hh and ll < ll[1]
+structUp = close > ta.lowest(low, minorLen)
+structDown = close < ta.highest(high, minorLen)
+
+e2suCore = ta.rsi(close, 14) > 55
+e2soCore = ta.rsi(close, 14) < 45
+subwaveHL = low > low[1] and low[1] < low[2]
+subwaveLH = high < high[1] and high[1] > high[2]
+breakHigh = close > ta.highest(high, 10)[1]
+breakLow = close < ta.lowest(low, 10)[1]
+
+buyLabel = marketDown and structDown and e2soCore and not e2suCore and (subwaveLH or breakLow)
+sellLabel = marketUp and structUp and e2suCore and not e2soCore and (subwaveHL or breakHigh)
+reEntryLabel = marketUp and structUp and not e2soCore and e2suCore and (subwaveHL or breakHigh)
+
+var bool inTradeCore = false
+var int lastExitBar = na
+var bool reEntryUsed = false
+var bool hadEntry = false
+canReEnter = not inTradeCore and (na(lastExitBar) or bar_index > lastExitBar + reEntryCooldown)
+
+coreEntry = masterOn and coreOn and coreEntryOn and buyLabel and not inTradeCore
+if coreEntry
+    inTradeCore := true
+    reEntryUsed := false
+    hadEntry := true
+
+coreReEntry = masterOn and coreOn and coreReEntryOn and reEntryLabel and canReEnter and not reEntryUsed and hadEntry
+coreExit = masterOn and coreOn and coreExitOn and sellLabel and inTradeCore
+
+if coreReEntry
+    inTradeCore := true
+    reEntryUsed := true
+if coreExit
+    inTradeCore := false
+    lastExitBar := bar_index
+    reEntryUsed := false
+
+// =====================================================
+// 🟪 ZZ Major V2 (entry / exit)
+// =====================================================
+zzm2_midBB = ta.sma(close, 20)
+zzm2_dev = 2.0 * ta.stdev(close, 20)
+zzm2_upperBB = zzm2_midBB + zzm2_dev
+zzm2_lowerBB = zzm2_midBB - zzm2_dev
+zzm2_mid2BB = (zzm2_midBB + zzm2_lowerBB) / 2.0
+zzm2_mid3BB = (zzm2_mid2BB + zzm2_lowerBB) / 2.0
+zzm2_wma5l = ta.wma(low, 5)
+zzm2_wma5h = ta.wma(high, 5)
+zzMajorV2Entry_raw = ta.crossover(zzm2_wma5l, zzm2_mid3BB)
+zzMajorV2RedX = zzm2_wma5h >= zzm2_upperBB and high >= zzm2_upperBB
+
+var bool zzMajorV2InTrade = false
+var float zzMajorV2Peak = na
+var bool zzMajorV2Armed = false
+
+majorV2Entry = masterOn and majorV2On and majorV2EntryOn and zzMajorV2Entry_raw and not zzMajorV2InTrade
+if majorV2Entry
+    zzMajorV2InTrade := true
+    zzMajorV2Peak := na
+    zzMajorV2Armed := false
+
+if zzMajorV2InTrade and zzMajorV2RedX
+    zzMajorV2Peak := na(zzMajorV2Peak) ? high : math.max(zzMajorV2Peak, high)
+    zzMajorV2Armed := true
+
+zzMajorV2PullbackLevel = na(zzMajorV2Peak) ? na : zzMajorV2Peak * (1.0 - zzV2PullbackPct / 100.0)
+majorV2Exit = masterOn and majorV2On and majorV2ExitOn and zzMajorV2InTrade and zzMajorV2Armed and not na(zzMajorV2PullbackLevel) and close <= zzMajorV2PullbackLevel
+if majorV2Exit
+    zzMajorV2InTrade := false
+    zzMajorV2Peak := na
+    zzMajorV2Armed := false
+
+// =====================================================
+// 🟨 ZZ Minor (entry / exit)
+// =====================================================
+ph = ta.pivothigh(high, minorDepth, minorDepth)
+pl = ta.pivotlow(low, minorDepth, minorDepth)
+var int lastPivotType = 0 // 1 high, -1 low
+minorTurnUp = not na(pl) and lastPivotType != -1
+minorTurnDown = not na(ph) and lastPivotType != 1
+if not na(pl)
+    lastPivotType := -1
+if not na(ph)
+    lastPivotType := 1
+
+minorEntry = masterOn and minorOn and minorEntryOn and minorTurnUp
+minorExit = masterOn and minorOn and minorExitOn and minorTurnDown
+
+// =====================================================
+// 🟩 ZZ Subwave (entry / exit)
+// =====================================================
+trend = 0
+trend := na(trend[1]) ? 1 : trend[1]
+LL = 0.0
+LL := na(LL[1]) ? low : LL[1]
+HH = 0.0
+HH := na(HH[1]) ? high : HH[1]
+PivotChg = zzPercent * 0.01
+zigzag = float(na)
+
+if trend > 0
+    if high >= HH
+        HH := high
+    else if low < HH * (1 - PivotChg)
+        zigzag := high[1]
+        trend := -1
+        LL := low
+else
+    if low <= LL
+        LL := low
+    else if high > LL * (1 + PivotChg)
+        zigzag := low[1]
+        trend := 1
+        HH := high
+
+ewEntry = masterOn and ewOn and ewEntryOn and trend == 1 and not na(zigzag)
+ewExit = masterOn and ewOn and ewExitOn and trend == -1 and not na(zigzag)
+
+// =====================================================
+// 🧾 STRATEGY ORDERS
+// =====================================================
+if e2soEntry
+    strategy.entry("E2So-Entry", strategy.long)
+if e2soReentry
+    strategy.entry("E2So-ReEntry", strategy.long)
+if e2soExit
+    strategy.close("E2So-Entry")
+    strategy.close("E2So-ReEntry")
+
+if e2suEntry
+    strategy.entry("E2Su-Entry", strategy.long)
+if e2suReEntry
+    strategy.entry("E2Su-ReEntry", strategy.long)
+if e2suExit
+    strategy.close("E2Su-Entry")
+    strategy.close("E2Su-ReEntry")
+
+if iboEntry
+    strategy.entry("IBO-Entry", strategy.long)
+if iboExit
+    strategy.close("IBO-Entry")
+
+if coreEntry
+    strategy.entry("Core-Entry", strategy.long)
+if coreReEntry
+    strategy.entry("Core-ReEntry", strategy.long)
+if coreExit
+    strategy.close("Core-Entry")
+    strategy.close("Core-ReEntry")
+
+if majorV2Entry
+    strategy.entry("MajorV2-Entry", strategy.long)
+if majorV2Exit
+    strategy.close("MajorV2-Entry")
+
+if minorEntry
+    strategy.entry("Minor-Entry", strategy.long)
+if minorExit
+    strategy.close("Minor-Entry")
+
+if ewEntry
+    strategy.entry("EW-Entry", strategy.long)
+if ewExit
+    strategy.close("EW-Entry")
+
+// =====================================================
+// 👁️ LABELS
+// =====================================================
+plotshape(showAllSignals and e2soEntry,   title="E2So Entry",   text="entry",   style=shape.labelup,   location=location.belowbar, color=color.white, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and e2soReentry, title="E2So ReEntry", text="reentry", style=shape.labelup,   location=location.belowbar, color=color.white, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and e2soExit,    title="E2So Exit",    text="exit",    style=shape.labeldown, location=location.abovebar, color=color.white, textcolor=color.black, size=size.tiny)
+
+plotshape(showAllSignals and e2suEntry,   title="E2Su Entry",   text="entry",   style=shape.labelup,   location=location.belowbar, color=color.green, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and e2suReEntry, title="E2Su ReEntry", text="reentry", style=shape.labelup,   location=location.belowbar, color=color.green, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and e2suExit,    title="E2Su Exit",    text="exit",    style=shape.labeldown, location=location.abovebar, color=color.green, textcolor=color.white, size=size.tiny)
+
+plotshape(showAllSignals and iboEntry,    title="IBO Entry",    text="entry",   style=shape.labelup,   location=location.belowbar, color=color.aqua, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and iboExit,     title="IBO Exit",     text="exit",    style=shape.labeldown, location=location.abovebar, color=color.aqua, textcolor=color.black, size=size.tiny)
+
+plotshape(showAllSignals and coreEntry,   title="ZZ Core Entry",   text="entry",   style=shape.labelup,   location=location.belowbar, color=color.fuchsia, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and coreReEntry, title="ZZ Core ReEntry", text="reentry", style=shape.labelup,   location=location.belowbar, color=color.fuchsia, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and coreExit,    title="ZZ Core Exit",    text="exit",    style=shape.labeldown, location=location.abovebar, color=color.fuchsia, textcolor=color.white, size=size.tiny)
+
+plotshape(showAllSignals and majorV2Entry, title="ZZ MajorV2 Entry", text="entry", style=shape.labelup,   location=location.belowbar, color=color.purple, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and majorV2Exit,  title="ZZ MajorV2 Exit",  text="exit",  style=shape.labeldown, location=location.abovebar, color=color.purple, textcolor=color.white, size=size.tiny)
+
+plotshape(showAllSignals and minorEntry, title="ZZ Minor Entry", text="entry", style=shape.labelup,   location=location.belowbar, color=color.yellow, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and minorExit,  title="ZZ Minor Exit",  text="exit",  style=shape.labeldown, location=location.abovebar, color=color.yellow, textcolor=color.black, size=size.tiny)
+
+plotshape(showAllSignals and ewEntry, title="ZZ Subwave Entry", text="entry", style=shape.labelup,   location=location.belowbar, color=color.lime, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and ewExit,  title="ZZ Subwave Exit",  text="exit",  style=shape.labeldown, location=location.abovebar, color=color.lime, textcolor=color.black, size=size.tiny)
+
+// helper plots used by extracted engines
+plot(ema50, "EMA50", color=color.new(color.white, 40))
+plot(ema6, "IBO EMA6", color=color.new(color.yellow, 30))
+plot(ema18, "IBO EMA18", color=color.new(color.blue, 30))
+plot(avgMid, "E2So AvgMid", color=color.new(color.gray, 65))

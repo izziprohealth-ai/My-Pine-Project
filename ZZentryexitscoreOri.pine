@@ -3311,11 +3311,11 @@ int ROW_DAILY_MARU     = compactTable ? 5 : 8
 int ROW_WEEKLY_MARU    = compactTable ? na : 9
 int ROW_MONTHLY_MARU   = compactTable ? na : 10
 int ROW_YEARLY_MARU    = compactTable ? na : 11
-int ROW_DIAGNOSTICS    = compactTable ? na : 12
-int ROW_UTC_BULL       = compactTable ? 6 : 13
-int ROW_DTC_BEAR       = compactTable ? 7 : 14
-int ROW_MAJOR_BULL     = compactTable ? 8 : 15
-int ROW_TREND_STACK    = compactTable ? na : 16
+int ROW_DIAGNOSTICS    = compactTable ? na : (showDiagnostics ? 12 : na)
+int ROW_UTC_BULL       = compactTable ? 6 : (showDiagnostics ? 13 : 12)
+int ROW_DTC_BEAR       = compactTable ? 7 : (showDiagnostics ? 14 : 13)
+int ROW_MAJOR_BULL     = compactTable ? 8 : (showDiagnostics ? 15 : 14)
+int ROW_TREND_STACK    = compactTable ? na : (showDiagnostics ? 16 : 15)
 
 
 // =====================================================

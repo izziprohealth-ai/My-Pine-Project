@@ -124,7 +124,7 @@ groupMaster = '🔌 Master Control'
 ZZ_MASTER_ON = input.bool(true, 'Enable ZZ Master Switch', group = groupMaster)
 
 showScoreTable = input.bool(true, "Show ZZ Score Table", group = groupMaster)
-showDiagnostics = input.bool(false, "Diagnostics row", group = groupMaster)
+showDiagnostics = false
 
 compactTable   = input.bool(false, "ZZ Score compact mode", group = groupMaster)
 
@@ -3626,11 +3626,15 @@ if exitSignal and e2soEntryLocked
 // 🚨 IBO ALERTS (HELPER)
 // =====================================================
 
+iboEntryAlert = ZZ_ON and iboDD_ON and showAllSignals and iboEntry
+iboExitAlert = ZZ_ON and iboDD_ON and showAllSignals and iboExit
+iboEntryTag = iboBuy2 ? "BUY2" : iboBuy1 ? "BUY1" : "ENTRY"
+
 // 🟢 IBO ENTRY
-if iboEntry
+if iboEntryAlert
     lastBar_IBO :=f_fireAlert(
             true,
-            alertSymbol + " | IBO 🟦| 🟢 ENTRY\n" +
+            alertSymbol + " | IBO 🟦| 🟢 ENTRY (" + iboEntryTag + ")\n" +
             alertHeader + " " + complianceLabel + "\n" +
             "EP: " + str.tostring(close) +
             " | SL: " + str.tostring(stopLoss) +
@@ -3658,12 +3662,13 @@ if iboEntry
             "🔗 " + chartLink,
             lastBar_IBO
     )
+    alert_IBO := true
     highPriorityAlertFired := true
 
 
 
 // 🔴 IBO EXIT
-if iboExit
+if iboExitAlert
     lastBar_IBO :=f_fireAlert(
             true,
             alertSymbol + " | IBO 🟦| 🔴 EXIT ⛔\n" +
@@ -3688,6 +3693,7 @@ if iboExit
             "🔗 " + chartLink,
             lastBar_IBO
     )
+    alert_IBO := true
     highPriorityAlertFired := true
 
 

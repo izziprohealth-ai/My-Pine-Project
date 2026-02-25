@@ -1,6 +1,13 @@
 //@version=6
 indicator('IBO trade', shorttitle = 'IBO trade', overlay = true)
 
+// Display & alert control
+signalSettings = 'Signal & Alert Settings'
+enableBuy1 = input.bool(true, 'Enable Buy 1 Signal', group = signalSettings)
+enableBuy2 = input.bool(true, 'Enable Strong Buy (Buy 2) Signal', group = signalSettings)
+showAdxDiBackground = input.bool(true, 'Show ADX/DI Background', group = signalSettings)
+marketSelection = input.string('Auto', 'Market for Alert', options = ['Auto', 'Bursa MYX', 'US Stock'], group = signalSettings)
+
 // Inputs for EMA
 len1 = input.int(9, minval = 1, title = 'EMA Short')
 len2 = input.int(20, minval = 1, title = 'EMA Long')
@@ -70,11 +77,13 @@ d = ta.sma(k, periodD)
 
 // Important Signals
 buy1 = DrawPoint and pJ > pD and ta.ema(close, 5) >= ta.ema(close, 10) and close >= ta.ema(close, 21) and close >= upperbb and volu2
-plotshape(buy1, style = shape.labelup, location = location.belowbar, color = color.rgb(0, 255, 8), text = 'ibo', textcolor=color.new(#000000, 0), title = 'Buy Signal', force_overlay = true)
+activeBuy1 = enableBuy1 and buy1
+plotshape(activeBuy1, style = shape.labelup, location = location.belowbar, color = color.rgb(0, 255, 8), text = 'buy 1', textcolor = color.new(#000000, 0), title = 'Buy 1 Signal', force_overlay = true)
 
 buy2 = DrawPoint and pJ > pD and ta.ema(close, 5) >= ta.ema(close, 10) and close >= ta.ema(close, 21) and close >= upperbb and volu3
-bgcolor(buy2 ? color.new(color.red, 90) : na)
-plotshape(buy2, style = shape.labelup, location = location.belowbar, color = color.rgb(251, 255, 0), text = 'ibo', textcolor=color.new(#000000, 0), title = 'Buy Signal', force_overlay = true)
+activeBuy2 = enableBuy2 and buy2
+bgcolor(activeBuy2 ? color.new(color.red, 90) : na)
+plotshape(activeBuy2, style = shape.labelup, location = location.belowbar, color = color.rgb(251, 255, 0), text = 'buy 2', textcolor = color.new(#000000, 0), title = 'Strong Buy (Buy 2) Signal', force_overlay = true)
 
 // DMI & ADX
 len = 14
@@ -90,11 +99,11 @@ sum = plus + minus
 adx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), lensig)
 
 daily_gc1 = request.security(syminfo.tickerid, 'D', plus > 25)
-bgcolor(daily_gc1 ? color.new(color.yellow, 85) : na)
+bgcolor(showAdxDiBackground and daily_gc1 ? color.new(color.yellow, 85) : na)
 
 goldencross = plus > minus and adx > 20
 daily_gc2 = request.security(syminfo.tickerid, 'D', goldencross)
-bgcolor(daily_gc2 ? color.new(color.aqua, 95) : na)
+bgcolor(showAdxDiBackground and daily_gc2 ? color.new(color.aqua, 95) : na)
 
 // RSI
 len5 = 14
@@ -114,18 +123,22 @@ barcolor(isdown ? color.red : na)
 // =====================================================
 
 // --- MASTER SIGNAL ---
-anySignal = buy1 or buy2
+anySignal = activeBuy1 or activeBuy2
+
+marketLabel = marketSelection == 'Auto' ? (syminfo.prefix == 'MYX' ? 'Bursa MYX' : 'US Stock') : marketSelection
+symbolForLink = marketSelection == 'Bursa MYX' ? 'MYX:' + syminfo.ticker : marketSelection == 'US Stock' ? syminfo.prefix + ':' + syminfo.ticker : syminfo.tickerid
+chartLink = 'https://www.tradingview.com/chart/?symbol=' + str.replace_all(symbolForLink, ':', '%3A')
 
 
 // =====================================================
 // ✅ ALERT CONDITIONS (Manual Selection Support)
 // =====================================================
 
-alertcondition(buy1,title = "IBO BUY",message = "IBO BUY | {{ticker}} | Price: {{close}}")
+alertcondition(activeBuy1, title = 'IBO BUY 1', message = 'IBO BUY 1 | {{ticker}} | Date/Time: {{time}} | Price: {{close}} | Action: BUY 1 | Market: Bursa MYX or US Stock | Chart: https://www.tradingview.com/chart/?symbol={{ticker}}')
 
-alertcondition(buy2,title = "IBO STRONG BUY",message = "IBO STRONG BUY | {{ticker}} | Price: {{close}}")
+alertcondition(activeBuy2, title = 'IBO STRONG BUY (BUY 2)', message = 'IBO STRONG BUY | {{ticker}} | Date/Time: {{time}} | Price: {{close}} | Action: STRONG BUY (BUY 2) | Market: Bursa MYX or US Stock | Chart: https://www.tradingview.com/chart/?symbol={{ticker}}')
 
-alertcondition(anySignal,title = "IBO ANY SIGNAL",message = "IBO SIGNAL | {{ticker}} | Price: {{close}}")
+alertcondition(anySignal, title = 'IBO ANY SIGNAL', message = 'IBO SIGNAL | {{ticker}} | Date/Time: {{time}} | Price: {{close}} | Action: BUY 1 / STRONG BUY (BUY 2) | Market: Bursa MYX or US Stock | Chart: https://www.tradingview.com/chart/?symbol={{ticker}}')
 
 
 // =====================================================
@@ -133,12 +146,17 @@ alertcondition(anySignal,title = "IBO ANY SIGNAL",message = "IBO SIGNAL | {{tick
 // =====================================================
 
 if anySignal and barstate.isconfirmed
+    signalInstruction = activeBuy2 ? 'STRONG BUY (BUY 2)' : activeBuy1 ? 'BUY 1' : 'NO SIGNAL'
     alert(
         '{"message":"🚀 IBO SIGNAL | ' +
         syminfo.ticker +
+        ' | Date/Time: ' + str.format_time(time, 'yyyy-MM-dd HH:mm') +
         ' | TF: ' + timeframe.period +
         ' | Price: ' +
         str.tostring(close) +
+        ' | Action: ' + signalInstruction +
+        ' | Market: ' + marketLabel +
+        ' | Chart: ' + chartLink +
         '"}',
         alert.freq_once_per_bar_close
     )

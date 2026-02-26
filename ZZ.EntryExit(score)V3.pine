@@ -1818,6 +1818,14 @@ utcBullPctTxt = str.tostring(utcBullScore_atTrigger) + "%"
 dtcBearPctTxt = str.tostring(utcBearScore_atTrigger) + "%"
 
 // =====================
+// 🧭 LONG-ONLY DTC GATE
+// =====================
+// Allow long entries only when:
+// 1) Bear zone is weakening (DTC narrowing), OR
+// 2) Structure has turned bullish (UTC bull zone)
+dtcLongGate = (utcBearZone and utcWidthDelta > widthEps) or utcBullZone
+
+// =====================
 // 🟢 UTC PRE-BULL CONFIRMATION (SAFE)
 // =====================
 
@@ -1864,10 +1872,13 @@ utcReentry =
 /////////////////////////////////////////////////////
 // ENTRY / RE-ENTRY / EXIT E2So
 /////////////////////////////////////////////////////
-entry = showAllSignals and E2So_ON and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20E2So
-reentry = showAllSignals and E2So_ON and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20E2So
+var bool e2soInTrade = false
 
-exitSignal = showAllSignals and E2So_ON and (exitCCI or high >= upperBB and exitStoch)
+entry = showAllSignals and E2So_ON and dtcLongGate and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20E2So
+reentry = showAllSignals and E2So_ON and dtcLongGate and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20E2So
+
+rawExitSignal = showAllSignals and E2So_ON and (exitCCI or high >= upperBB and exitStoch)
+exitSignal = rawExitSignal and e2soInTrade
 
 // =====================
 // 📈 E2So TREND VALIDATION
@@ -1900,6 +1911,12 @@ var bool e2soReentryLocked = false
 plotshape(ZZ_ON and showE2So and showEntry and entry, 'E2So Entry', shape.labelup, location.belowbar, color.white, text = 'entry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true, editable = true)
 plotshape(ZZ_ON and showE2So and showReEntry and reentry, 'E2So ReEntry', shape.labelup, location.belowbar, color.white, text = 'reentry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
 plotshape(ZZ_ON and showE2So and showExit and exitSignal, 'E2So Exit', shape.labeldown, location.abovebar, color.white, text = 'exit', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
+
+// Keep exit logically valid only after an entry/reentry appears first.
+if entry or reentry
+    e2soInTrade := true
+if exitSignal
+    e2soInTrade := false
 
 /////////////////////////////////////////////////////
 // VISUAL EFFECTS
@@ -2865,6 +2882,7 @@ string chartLink =
 if isCrypto and ta.change(time("D")) != 0
     e2soEntryLocked   := false
     e2soReentryLocked := false
+    e2soInTrade       := false
     e2suEntryLocked   := false
     zzMajorV2InTrade  := false
     zzMajorV2Armed    := false
@@ -3517,7 +3535,11 @@ if e2suExit and e2suEntryLocked
 //////////////////////////////////////////////////////
 //////////// E2So ALERTS ////////////////////////////
 /////////////////////////////////////////////////////
-if entry and not e2soEntryLocked
+e2soEntryAlertEnabled = ZZ_ON and showE2So and showEntry and showAllSignals
+e2soReentryAlertEnabled = ZZ_ON and showE2So and showReEntry and showAllSignals
+e2soExitAlertEnabled = ZZ_ON and showE2So and showExit and showAllSignals
+
+if e2soEntryAlertEnabled and entry and not e2soEntryLocked
     lastBar_E2SoEntry :=f_fireAlert(
             true,
             alertSymbol + " | E2So ⬜| 🟢 ENTRY\n" +
@@ -3554,7 +3576,7 @@ if entry and not e2soEntryLocked
 
 
 
-if e2soReentryState and not e2soReentryLocked
+if e2soReentryAlertEnabled and e2soReentryState and not e2soReentryLocked
     lastBar_E2SoReentry :=f_fireAlert(
             true,
             alertSymbol + " | E2So ⬜| 🟢 REENTRY ♻️\n" +
@@ -3591,7 +3613,7 @@ if e2soReentryState and not e2soReentryLocked
 
 
 
-if exitSignal and e2soEntryLocked
+if e2soExitAlertEnabled and exitSignal and e2soEntryLocked
     lastBar_E2SoExit :=f_fireAlert(
             true,
             alertSymbol + " | E2So ⬜| 🔴 EXIT ⛔\n" +
@@ -3619,6 +3641,7 @@ if exitSignal and e2soEntryLocked
 
     e2soEntryLocked := false
     e2soReentryLocked := false
+    e2soInTrade := false
     highPriorityAlertFired := true
 
 

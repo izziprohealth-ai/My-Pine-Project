@@ -103,11 +103,19 @@ avgMid = math.avg(midBB2, dcMid2)
 volMA20E2So = ta.sma(volume, 20)
 volMAIBO = ta.sma(volume, 20)
 
+utcBullZone = ema10 > ema50
+utcBearZone = ema10 < ema50
+utcZoneWidth = math.abs((ema10 + ao) - (ema50 - ao))
+utcWidthEMA = ta.ema(utcZoneWidth, 5)
+utcWidthDelta = utcWidthEMA - utcWidthEMA[1]
+widthEps = utcZoneWidth * 0.02
+dtcLongGate = (utcBearZone and utcWidthDelta > widthEps) or utcBullZone
+
 // =====================================================
 // ⬜ E2So (entry / re-entry / exit)
 // =====================================================
-e2soEntry = masterOn and e2soOn and e2soEntryOn and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20E2So
-e2soReentry = masterOn and e2soOn and e2soReEntryOn and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20E2So
+e2soEntry = masterOn and e2soOn and e2soEntryOn and dtcLongGate and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20E2So
+e2soReentry = masterOn and e2soOn and e2soReEntryOn and dtcLongGate and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20E2So
 e2soExit = masterOn and e2soOn and e2soExitOn and (exitCCI or (high >= upperBB and exitStoch))
 
 // =====================================================

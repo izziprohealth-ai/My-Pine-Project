@@ -632,6 +632,7 @@ showEWLine = input.bool(true, 'ZZ Subwave Line', group = groupEngine)
 showE2So = input.bool(true, "E2So ⬜| entry exit signal momentum base |Short|Medium|Long term|", group = groupEngine)
 showE2Su = input.bool(false, "E2Su 🟩| entry exit signal price base |Medium|Long term|", group = groupEngine)
 showIBO = input.bool(false, "IBO 🟦| entry exit signal short ema base |Shortterm|", group = groupEngine)
+showIBOBuyLevels = input.bool(true, 'Show IBO 🟦| Buy 1 / Buy 2 labels', group = groupEngine)
 showBTST_PRO = input.bool(true, "BTST_PRO signal 🟪|Shortterm|", group = groupEngine)
 // =====================================================
 // 🧠 ZZ CORE — ENTRY / EXIT SIGNAL (NEW ENGINE)
@@ -1797,6 +1798,26 @@ utcWidthDelta = utcWidthEMA - utcWidthEMA[1]
 
 // Threshold to ignore noise
 widthEps = utcZoneWidth * 0.02
+
+// =====================
+// 🔒 BEAR WEAKENING — ZONE LIFECYCLE LOCK
+// =====================
+
+var bool bearWeakeningFiredInZone = false
+
+// Reset when bear zone ends
+if not utcBearZone
+    bearWeakeningFiredInZone := false
+
+bool bearWeakeningTrigger =
+     utcBearZone and
+     not bearWeakeningFiredInZone and
+     utcWidthDelta > widthEps and
+     utcWidthDelta[1] <= widthEps
+
+if bearWeakeningTrigger
+    bearWeakeningFiredInZone := true
+
 // =====================
 // 📈 ZONE STATE (LOGICAL, NOT HISTORICAL)
 // =====================
@@ -1815,6 +1836,14 @@ dtcBearState =
 
 utcBullPctTxt = str.tostring(utcBullScore_atTrigger) + "%"
 dtcBearPctTxt = str.tostring(utcBearScore_atTrigger) + "%"
+
+// =====================
+// 🧭 LONG-ONLY DTC GATE
+// =====================
+// Allow long entries only when:
+// 1) Bear zone is weakening (DTC narrowing), OR
+// 2) Structure has turned bullish (UTC bull zone)
+dtcLongGate = (utcBearZone and utcWidthDelta > widthEps) or utcBullZone
 
 // =====================
 // 🟢 UTC PRE-BULL CONFIRMATION (SAFE)
@@ -1863,10 +1892,13 @@ utcReentry =
 /////////////////////////////////////////////////////
 // ENTRY / RE-ENTRY / EXIT E2So
 /////////////////////////////////////////////////////
-entry = showAllSignals and E2So_ON and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20E2So
-reentry = showAllSignals and E2So_ON and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20E2So
+var bool e2soInTrade = false
 
-exitSignal = showAllSignals and E2So_ON and (exitCCI or high >= upperBB and exitStoch)
+entry = showAllSignals and E2So_ON and dtcLongGate and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20E2So
+reentry = showAllSignals and E2So_ON and dtcLongGate and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20E2So
+
+rawExitSignal = showAllSignals and E2So_ON and (exitCCI or high >= upperBB and exitStoch)
+exitSignal = rawExitSignal and e2soInTrade
 
 // =====================
 // 📈 E2So TREND VALIDATION
@@ -1899,6 +1931,12 @@ var bool e2soReentryLocked = false
 plotshape(ZZ_ON and showE2So and showEntry and entry, 'E2So Entry', shape.labelup, location.belowbar, color.white, text = 'entry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true, editable = true)
 plotshape(ZZ_ON and showE2So and showReEntry and reentry, 'E2So ReEntry', shape.labelup, location.belowbar, color.white, text = 'reentry', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
 plotshape(ZZ_ON and showE2So and showExit and exitSignal, 'E2So Exit', shape.labeldown, location.abovebar, color.white, text = 'exit', textcolor = color.new(#000000, 0), size = size.small, force_overlay = true)
+
+// Keep exit logically valid only after an entry/reentry appears first.
+if entry or reentry
+    e2soInTrade := true
+if exitSignal
+    e2soInTrade := false
 
 /////////////////////////////////////////////////////
 // VISUAL EFFECTS
@@ -2047,7 +2085,7 @@ iboDcLen = input.int(13, 'IBO Donchian Length', minval = 2)// group = groupEngin
 iboBbLen = input.int(20, 'IBO Bollinger Length', minval = 5)// group = groupEngine)
 iboBbMult = input.float(1.0, 'IBO Bollinger Multiplier', minval = 0.1, step = 0.1)// group = groupEngine)
 iboVolStrongMult = input.float(1.5, 'IBO Strong Volume Multiplier', minval = 1.0, step = 0.1)// group = groupEngine)
-showIBOBuyLevels = input.bool(true, 'Show IBO Buy 1 / Buy 2 labels', group = groupEngine)
+
 
 iboDcUpper = ta.highest(high, iboDcLen)
 iboDrawPoint = close > iboDcUpper[1]
@@ -2864,6 +2902,7 @@ string chartLink =
 if isCrypto and ta.change(time("D")) != 0
     e2soEntryLocked   := false
     e2soReentryLocked := false
+    e2soInTrade       := false
     e2suEntryLocked   := false
     zzMajorV2InTrade  := false
     zzMajorV2Armed    := false
@@ -3252,12 +3291,12 @@ tblHeaderTextCol = color.new(tblHeaderTextBaseCol, headerTextTransp)
 color utcBullTextCol =
      utcBullScore >= 60 ? color.lime :
      utcBullScore >= 40 ? color.yellow :
-     color.gray
+     color.rgb(255, 255, 255)
 
 color utcBearTextCol =
      utcBearScore >= 60 ? color.red :
      utcBearScore >= 40 ? color.orange :
-     color.gray
+     color.rgb(255, 255, 255)
 
 bullStateTxt = utcBullState
 bearStateTxt = dtcBearState
@@ -3516,7 +3555,11 @@ if e2suExit and e2suEntryLocked
 //////////////////////////////////////////////////////
 //////////// E2So ALERTS ////////////////////////////
 /////////////////////////////////////////////////////
-if entry and not e2soEntryLocked
+e2soEntryAlertEnabled = ZZ_ON and showE2So and showEntry and showAllSignals
+e2soReentryAlertEnabled = ZZ_ON and showE2So and showReEntry and showAllSignals
+e2soExitAlertEnabled = ZZ_ON and showE2So and showExit and showAllSignals
+
+if e2soEntryAlertEnabled and entry and not e2soEntryLocked
     lastBar_E2SoEntry :=f_fireAlert(
             true,
             alertSymbol + " | E2So ⬜| 🟢 ENTRY\n" +
@@ -3553,7 +3596,7 @@ if entry and not e2soEntryLocked
 
 
 
-if e2soReentryState and not e2soReentryLocked
+if e2soReentryAlertEnabled and e2soReentryState and not e2soReentryLocked
     lastBar_E2SoReentry :=f_fireAlert(
             true,
             alertSymbol + " | E2So ⬜| 🟢 REENTRY ♻️\n" +
@@ -3590,7 +3633,7 @@ if e2soReentryState and not e2soReentryLocked
 
 
 
-if exitSignal and e2soEntryLocked
+if e2soExitAlertEnabled and exitSignal and e2soEntryLocked
     lastBar_E2SoExit :=f_fireAlert(
             true,
             alertSymbol + " | E2So ⬜| 🔴 EXIT ⛔\n" +
@@ -3618,6 +3661,7 @@ if exitSignal and e2soEntryLocked
 
     e2soEntryLocked := false
     e2soReentryLocked := false
+    e2soInTrade := false
     highPriorityAlertFired := true
 
 
@@ -4075,7 +4119,7 @@ if dtcSell and not alert_UTC_Cross and not highPriorityAlertFired
 
 
 // 🟡 UTC — BEAR WEAKENING
-if utcBearWeakening and not alert_UTC_Entry  and not highPriorityAlertFired
+if bearWeakeningTrigger and not alert_UTC_Entry and not highPriorityAlertFired
     lastBar_UTC :=f_fireAlert(
             true,
             alertSymbol + " | UTC | 🟡 Bear Weakening\n" +

@@ -4,6 +4,8 @@
 ///////////////////////////////////////////////////////////////
 indicator(shorttitle = 'BMX RDL', title = 'BMX type-R DL', overlay = true) ////original name BbmaSig Overlay
 //////////////////////////////////////////////////////////////
+showAllPlots = input.bool(true, title = 'Show all plots')
+
 length = input.int(20, minval = 1)
 src = input(close, title = 'Source')
 mult = input.float(2.0, minval = 0.001, maxval = 50)
@@ -25,15 +27,15 @@ midDC = math.avg(upperDC, lowerDC)
 midBBcol = midBB > close ? #ff0000 : #00ff00
 
 
-plot(midBB, color = midBBcol, linewidth = 2, style = plot.style_circles, offset = 0, editable = true)
-plot(midBB, color = midBBcol, linewidth = 1, style = plot.style_line, offset = 0, editable = true)
-p1 = plot(mid2BB, color = color.new(color.yellow, 50), linewidth = 1, style = plot.style_line, offset = 0, show_last = 50, editable = false)
-p2 = plot(mid3BB, color = color.new(color.yellow, 50), linewidth = 1, style = plot.style_line, offset = 0, show_last = 50, editable = false)
-p3 = plot(upper2BB, color = color.new(#ff0000, 50), linewidth = 1, style = plot.style_line, offset = 0, show_last = 50, editable = false)
-p4 = plot(upper3BB, color = color.new(#ff0000, 50), linewidth = 1, style = plot.style_line, offset = 0, show_last = 50, editable = false)
+plot(showAllPlots ? midBB : na, color = midBBcol, linewidth = 2, style = plot.style_circles, offset = 0, editable = true)
+plot(showAllPlots ? midBB : na, color = midBBcol, linewidth = 1, style = plot.style_line, offset = 0, editable = true)
+p1 = plot(showAllPlots ? mid2BB : na, color = color.new(color.yellow, 50), linewidth = 1, style = plot.style_line, offset = 0, show_last = 50, editable = false)
+p2 = plot(showAllPlots ? mid3BB : na, color = color.new(color.yellow, 50), linewidth = 1, style = plot.style_line, offset = 0, show_last = 50, editable = false)
+p3 = plot(showAllPlots ? upper2BB : na, color = color.new(#ff0000, 50), linewidth = 1, style = plot.style_line, offset = 0, show_last = 50, editable = false)
+p4 = plot(showAllPlots ? upper3BB : na, color = color.new(#ff0000, 50), linewidth = 1, style = plot.style_line, offset = 0, show_last = 50, editable = false)
 
-fill(p1, p2, color = color.new(color.yellow, 50), editable = false)
-fill(p3, p4, color = color.new(#ff0000, 50), editable = false)
+fill(p1, p2, color = showAllPlots ? color.new(color.yellow, 50) : na, editable = false)
+fill(p3, p4, color = showAllPlots ? color.new(#ff0000, 50) : na, editable = false)
 ////////////////////////
 wma5h = ta.wma(high, 5)
 wma10h = ta.wma(high, 10)
@@ -42,50 +44,50 @@ wma10l = ta.wma(low, 10)
 
 wma5lxwma10lfillcolor = wma5l > wma10l ? #00ffff : color.fuchsia
 
-p5 = plot(wma5l, color = wma5lxwma10lfillcolor, linewidth = 1, style = plot.style_line, offset = 0, editable = true)
-p6 = plot(wma10l, color = wma5lxwma10lfillcolor, linewidth = 1, style = plot.style_line, offset = 0, editable = true)
+p5 = plot(showAllPlots ? wma5l : na, color = wma5lxwma10lfillcolor, linewidth = 1, style = plot.style_line, offset = 0, editable = true)
+p6 = plot(showAllPlots ? wma10l : na, color = wma5lxwma10lfillcolor, linewidth = 1, style = plot.style_line, offset = 0, editable = true)
 
-fill(p5, p6, color = wma5lxwma10lfillcolor)
+fill(p5, p6, color = showAllPlots ? wma5lxwma10lfillcolor : na)
 ///////////////////////////////////////////////
 wma510x = ta.crossover(wma5l, wma10l) and wma5l > mid3BB and wma10l > mid3BB and wma5l < midBB and wma10l < midBB and close < midBB
 
 wma510xcolor = wma510x ? #ff00ff : na
-bgcolor(wma510xcolor, show_last = 20)
+bgcolor(showAllPlots ? wma510xcolor : na, show_last = 20)
 
-plotshape(wma510x, style = shape.diamond, location = location.belowbar, color = color.new(color.fuchsia, 0))
+plotshape(showAllPlots and wma510x, style = shape.diamond, location = location.belowbar, color = color.new(color.fuchsia, 0))
 /////////////////////////////////////////////
 wma5xmid3bb = ta.crossover(wma5l, mid3BB) and close > mid3BB
-plotshape(wma5xmid3bb, title = 'entry', style = shape.triangleup, location = location.belowbar, color = color.new(color.white, 0), text = 'E')
+plotshape(showAllPlots and wma5xmid3bb, title = 'entry', style = shape.triangleup, location = location.belowbar, color = color.new(color.white, 0), text = 'E')
 
 
 wma5xmid3bbcolor = wma5xmid3bb ? color.white : na
-barcolor(wma5xmid3bbcolor)
-bgcolor(wma5xmid3bbcolor, show_last = 20)
+barcolor(showAllPlots ? wma5xmid3bbcolor : na)
+bgcolor(showAllPlots ? wma5xmid3bbcolor : na, show_last = 20)
 
 alertcondition(wma5xmid3bb, title = 'entry', message = 'entry signal')
 
 ////////////////////////////////////////////////
 powerbar = close > mid3BB and low < mid3BB and open < mid3BB and high > mid3BB and low > lowerBB and wma10l > wma5l and close >= mid2BB
-plotshape(powerbar, title = 'buy', style = shape.triangleup, location = location.belowbar, color = color.new(color.yellow, 0), text = 'B')
+plotshape(showAllPlots and powerbar, title = 'buy', style = shape.triangleup, location = location.belowbar, color = color.new(color.yellow, 0), text = 'B')
 
 powerbarcolor = powerbar ? color.yellow : na
-barcolor(powerbarcolor)
-bgcolor(powerbarcolor, show_last = 20)
+barcolor(showAllPlots ? powerbarcolor : na)
+bgcolor(showAllPlots ? powerbarcolor : na, show_last = 20)
 
 alertcondition(powerbar, title = 'buy', message = 'buy signal')
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 xtremeup = wma5h >= upperBB and high >= upperBB
 xtremedown = wma5l <= lowerBB and low <= lowerBB
-plotshape(xtremeup, style = shape.xcross, location = location.abovebar, color = color.new(#ff0000, 0), offset = 0, editable = true, size = size.tiny)
-plotshape(xtremedown, style = shape.xcross, location = location.belowbar, color = color.new(#00ff00, 0), offset = 0, editable = true, size = size.tiny)
+plotshape(showAllPlots and xtremeup, style = shape.xcross, location = location.abovebar, color = color.new(#ff0000, 0), offset = 0, editable = true, size = size.tiny)
+plotshape(showAllPlots and xtremedown, style = shape.xcross, location = location.belowbar, color = color.new(#00ff00, 0), offset = 0, editable = true, size = size.tiny)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
 upBBcol = wma5h >= upperBB ? #00ff00 : #ff0000
 loBBcol = wma5l <= lowerBB ? #ff0000 : color.yellow
-p101 = plot(upperBB, color = upBBcol, linewidth = 2, style = plot.style_line, offset = 0, editable = true)
-p202 = plot(lowerBB, color = loBBcol, linewidth = 2, style = plot.style_line, offset = 0, editable = true)
+p101 = plot(showAllPlots ? upperBB : na, color = upBBcol, linewidth = 2, style = plot.style_line, offset = 0, editable = true)
+p202 = plot(showAllPlots ? lowerBB : na, color = loBBcol, linewidth = 2, style = plot.style_line, offset = 0, editable = true)
 //////////////////////////////////
 ema1 = ta.ema(close, 10)
 ema2 = ta.ema(close, 50)
@@ -98,6 +100,6 @@ buy = ema1 > ema2
 sell = ema2 > ema1
 
 
-plot(ema2, title = 'long ema', color = ema2color, linewidth = 2, style = plot.style_line, offset = 0, editable = true)
+plot(showAllPlots ? ema2 : na, title = 'long ema', color = ema2color, linewidth = 2, style = plot.style_line, offset = 0, editable = true)
 //plot(ema2, title="long ema", color=ema2color, linewidth=1, style=plot.style_circles, transp=30, offset=0, editable=true)
 ////////////////////////////////////////////

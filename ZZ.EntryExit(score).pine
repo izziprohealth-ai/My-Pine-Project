@@ -2242,7 +2242,9 @@ if ZZ_ON and ewExit
 groupSessionSlave = '🔌 Session Markers (Bursa / US / FCPO)'
 
 // FINAL GATE (MASTER ➜ SLAVE)
-SESSION_ON = ZZ_MASTER_ON and SESSION_SLAVE_ON
+int sessionTfSeconds = timeframe.in_seconds(timeframe.period)
+bool sessionTfAllowed = not na(sessionTfSeconds) and sessionTfSeconds <= 3600
+SESSION_ON = ZZ_MASTER_ON and SESSION_SLAVE_ON and sessionTfAllowed
 
 // ==================================================
 // 📍 AUTO SESSION LABEL (ALERT USE ONLY)

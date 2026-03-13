@@ -929,113 +929,6 @@ zzBullVolSpike = volSpike50
 bullCandle = close > open
 
 
-// =====================================================================
-// 🌊 ZZ MAJOR V2 — MASTER SAFE (TOGGLE-FIXED) | Pine v6
-// =====================================================================
-
-// -------------------------------------------------
-// 🔒 INTERNAL CALCS (LOCAL / NO COLLISION)
-// -------------------------------------------------
-zzm2_len  = 20
-zzm2_mult = 2.0
-
-zzm2_midBB   = ta.sma(close, zzm2_len)
-zzm2_dev     = zzm2_mult * ta.stdev(close, zzm2_len)
-zzm2_upperBB = zzm2_midBB + zzm2_dev
-zzm2_lowerBB = zzm2_midBB - zzm2_dev
-
-zzm2_mid2BB = (zzm2_midBB + zzm2_lowerBB) / 2.0
-zzm2_mid3BB = (zzm2_mid2BB + zzm2_lowerBB) / 2.0
-
-zzm2_wma5l = ta.wma(low, 5)
-zzm2_wma5h = ta.wma(high, 5)
-
-// -------------------------------------------------
-// 🟢 ENTRY — EARLY
-// -------------------------------------------------
-zzMajorV2Entry_raw = ta.crossover(zzm2_wma5l, zzm2_mid3BB)
-
-// -------------------------------------------------
-// 🔴 RED-X ZONE
-// -------------------------------------------------
-zzMajorV2RedX = zzm2_wma5h >= zzm2_upperBB and high >= zzm2_upperBB
-
-// -------------------------------------------------
-// 🧠 STATE MEMORY (V2 ONLY)
-// -------------------------------------------------
-var bool  zzMajorV2InTrade = false
-var float zzMajorV2Peak    = na
-var bool  zzMajorV2Armed   = false
-
-zzMajorV2Entry = false
-zzMajorV2Exit  = false
-
-// -------------------------------------------------
-// 🟢 ENTRY STATE (V2 TOGGLE-GATED)
-// -------------------------------------------------
-if ZZ_ON and showZZMajorV2Signal and zzMajorV2Entry_raw and not zzMajorV2InTrade
-    zzMajorV2InTrade := true
-    zzMajorV2Peak    := na
-    zzMajorV2Armed   := false
-    zzMajorV2Entry   := true
-
-// -------------------------------------------------
-// 📈 TRACK HIGHEST HIGH DURING RED-X
-// -------------------------------------------------
-if zzMajorV2InTrade and zzMajorV2RedX
-    zzMajorV2Peak  := na(zzMajorV2Peak) ? high : math.max(zzMajorV2Peak, high)
-    zzMajorV2Armed := true
-
-// -------------------------------------------------
-// 🔴 EXIT — PULLBACK FROM RED-X PEAK
-// -------------------------------------------------
-float zzMajorV2PullbackLevel = na(zzMajorV2Peak) ? na : zzMajorV2Peak * (1.0 - zzV2PullbackPct / 100.0)
-bool zzMajorV2PullbackExit = zzMajorV2InTrade and zzMajorV2Armed and not na(zzMajorV2PullbackLevel) and close <= zzMajorV2PullbackLevel
-
-if zzMajorV2PullbackExit
-    zzMajorV2Exit    := true
-    zzMajorV2InTrade := false
-    zzMajorV2Peak    := na
-    zzMajorV2Armed   := false
-
-// =====================================================
-// 👁️ VISIBILITY (V2 TOGGLES — FIXED)
-// =====================================================
-zzMajorV2EntryVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Entry and zzMajorV2Entry
-
-zzMajorV2ExitVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Exit and zzMajorV2Exit
-
-// -------------------------------------------------
-// 🎯 PLOTS (ZZ MAJOR V2)
-// -------------------------------------------------
-plotshape(
-    zzMajorV2EntryVisible,
-    title = "ZZ Major V2 Entry",
-    text  = "entry",
-    style = shape.labelup,
-    location = location.belowbar,
-    color = color.purple,
-    textcolor = labelTextCol,
-    size = size.small,
-    force_overlay = true
-)
-
-plotshape(
-    zzMajorV2ExitVisible,
-    title = "ZZ Major V2 Exit (Pullback from Peak)",
-    text  = "exit",
-    style = shape.labeldown,
-    location = location.abovebar,
-    color = color.purple,
-    textcolor = labelTextCol,
-    size = size.small,
-    force_overlay = true
-)
-
-// =====================================================================
-// ✅ END — ZZ MAJOR V2 (TOGGLE SAFE)
-// =====================================================================
-
 // =====================
 // ZIGZAG LINE PLOT
 // =====================
@@ -1799,6 +1692,15 @@ utcWidthDelta = utcWidthEMA - utcWidthEMA[1]
 // Threshold to ignore noise
 widthEps = utcZoneWidth * 0.02
 
+
+// ---- Zone State Flags ----
+dtcNarrowing  = utcBearZone and utcWidthDelta < -widthEps
+dtcExpanding  = utcBearZone and utcWidthDelta >  widthEps
+
+utcExpanding  = utcBullZone and utcWidthDelta >  widthEps
+utcNarrowing  = utcBullZone and utcWidthDelta < -widthEps
+
+
 // =====================
 // 🔒 BEAR WEAKENING — ZONE LIFECYCLE LOCK
 // =====================
@@ -1843,8 +1745,20 @@ dtcBearPctTxt = str.tostring(utcBearScore_atTrigger) + "%"
 // Allow long entries only when:
 // 1) Bear zone is weakening (DTC narrowing), OR
 // 2) Structure has turned bullish (UTC bull zone)
-dtcLongGate = (utcBearZone and utcWidthDelta > widthEps) or utcBullZone
+// =====================
+// 🧭 LONG-ONLY DTC GATE (STRICT VERSION)
+// =====================
+//dtcLongGate = dtcNarrowing   or  utcExpanding   // Bear pressure shrinking // Bull pressure growing    
 
+//dtcLongGate = (dtcNarrowing and utcBearScore < 70) or (utcExpanding and utcBullScore > 30)
+
+useStrictZoneFilter = input.bool(true, "Use Strict DTC/UTC Zone Filter")
+
+dtcLongGate =
+     useStrictZoneFilter ?
+         (dtcNarrowing or utcExpanding)
+     :
+         ((utcBearZone and utcWidthDelta > widthEps) or utcBullZone)
 // =====================
 // 🟢 UTC PRE-BULL CONFIRMATION (SAFE)
 // =====================
@@ -2049,7 +1963,112 @@ plotshape(
     force_overlay = true
 )
 
+// =====================================================================
+// 🌊 ZZ MAJOR V2 — MASTER SAFE (TOGGLE-FIXED) | Pine v6
+// =====================================================================
 
+// -------------------------------------------------
+// 🔒 INTERNAL CALCS (LOCAL / NO COLLISION)
+// -------------------------------------------------
+zzm2_len  = 20
+zzm2_mult = 2.0
+
+zzm2_midBB   = ta.sma(close, zzm2_len)
+zzm2_dev     = zzm2_mult * ta.stdev(close, zzm2_len)
+zzm2_upperBB = zzm2_midBB + zzm2_dev
+zzm2_lowerBB = zzm2_midBB - zzm2_dev
+
+zzm2_mid2BB = (zzm2_midBB + zzm2_lowerBB) / 2.0
+zzm2_mid3BB = (zzm2_mid2BB + zzm2_lowerBB) / 2.0
+
+zzm2_wma5l = ta.wma(low, 5)
+zzm2_wma5h = ta.wma(high, 5)
+
+// -------------------------------------------------
+// 🟢 ENTRY — EARLY
+// -------------------------------------------------
+zzMajorV2Entry_raw = ta.crossover(zzm2_wma5l, zzm2_mid3BB)
+
+// -------------------------------------------------
+// 🔴 RED-X ZONE
+// -------------------------------------------------
+zzMajorV2RedX = zzm2_wma5h >= zzm2_upperBB and high >= zzm2_upperBB
+
+// -------------------------------------------------
+// 🧠 STATE MEMORY (V2 ONLY)
+// -------------------------------------------------
+var bool  zzMajorV2InTrade = false
+var float zzMajorV2Peak    = na
+var bool  zzMajorV2Armed   = false
+
+zzMajorV2Entry = false
+zzMajorV2Exit  = false
+
+// -------------------------------------------------
+// 🟢 ENTRY STATE (V2 TOGGLE-GATED)
+// -------------------------------------------------
+if ZZ_ON and showZZMajorV2Signal and zzMajorV2Entry_raw and not zzMajorV2InTrade
+    zzMajorV2InTrade := true
+    zzMajorV2Peak    := na
+    zzMajorV2Armed   := false
+    zzMajorV2Entry   := true
+
+// -------------------------------------------------
+// 📈 TRACK HIGHEST HIGH DURING RED-X
+// -------------------------------------------------
+if zzMajorV2InTrade and zzMajorV2RedX
+    zzMajorV2Peak  := na(zzMajorV2Peak) ? high : math.max(zzMajorV2Peak, high)
+    zzMajorV2Armed := true
+
+// -------------------------------------------------
+// 🔴 EXIT — PULLBACK FROM RED-X PEAK
+// -------------------------------------------------
+float zzMajorV2PullbackLevel = na(zzMajorV2Peak) ? na : zzMajorV2Peak * (1.0 - zzV2PullbackPct / 100.0)
+bool zzMajorV2PullbackExit = zzMajorV2InTrade and zzMajorV2Armed and not na(zzMajorV2PullbackLevel) and close <= zzMajorV2PullbackLevel
+
+if zzMajorV2PullbackExit
+    zzMajorV2Exit    := true
+    zzMajorV2InTrade := false
+    zzMajorV2Peak    := na
+    zzMajorV2Armed   := false
+
+// =====================================================
+// 👁️ VISIBILITY (V2 TOGGLES — FIXED)
+// =====================================================
+zzMajorV2EntryVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Entry and zzMajorV2Entry
+
+zzMajorV2ExitVisible = ZZ_ON and showAllSignals and showZZMajorV2Signal and showZZMajorV2Exit and zzMajorV2Exit
+
+// -------------------------------------------------
+// 🎯 PLOTS (ZZ MAJOR V2)
+// -------------------------------------------------
+plotshape(
+    zzMajorV2EntryVisible,
+    title = "ZZ Major V2 Entry",
+    text  = "entry",
+    style = shape.labelup,
+    location = location.belowbar,
+    color = color.purple,
+    textcolor = labelTextCol,
+    size = size.small,
+    force_overlay = true
+)
+
+plotshape(
+    zzMajorV2ExitVisible,
+    title = "ZZ Major V2 Exit (Pullback from Peak)",
+    text  = "exit",
+    style = shape.labeldown,
+    location = location.abovebar,
+    color = color.purple,
+    textcolor = labelTextCol,
+    size = size.small,
+    force_overlay = true
+)
+
+// =====================================================================
+// ✅ END — ZZ MAJOR V2 (TOGGLE SAFE)
+// =====================================================================
 
 
 // =====================================================
@@ -2167,13 +2186,13 @@ plot(ZZ_ON and showAllSignals and iboDD_ON ? ema18 : na, title = 'IBO EMA18', co
 // =====================================================
 // 🔔 ENTRY / EXIT SIGNALS LABELS
 // =====================================================
-plotshape(ZZ_ON and iboDD_ON and iboEntry, title = 'IBO Entry', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
+plotshape(ZZ_ON and showAllSignals and iboDD_ON and iboEntry, title = 'IBO Entry', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
 
-plotshape(ZZ_ON and iboDD_ON and showIBOBuyLevels and iboBuy1, title = 'IBO Buy 1 Precision', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.black, size = size.tiny, force_overlay = true, editable = true)
+plotshape(ZZ_ON and showAllSignals and iboDD_ON and showIBOBuyLevels and iboBuy1, title = 'IBO Buy 1 Precision', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.black, size = size.tiny, force_overlay = true, editable = true)
 
-plotshape(ZZ_ON and iboDD_ON and showIBOBuyLevels and iboBuy2, title = 'IBO Buy 2 Precision', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.black, size = size.tiny, force_overlay = true, editable = true)
+plotshape(ZZ_ON and showAllSignals and iboDD_ON and showIBOBuyLevels and iboBuy2, title = 'IBO Buy 2 Precision', text = 'entry', style = shape.labelup, location = location.belowbar, color = color.rgb(3, 235, 252), textcolor = color.black, size = size.tiny, force_overlay = true, editable = true)
 
-plotshape(ZZ_ON and iboDD_ON and iboExit, title = 'IBO Exit', text = 'exit', style = shape.labeldown, location = location.abovebar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
+plotshape(ZZ_ON and showAllSignals and iboDD_ON and iboExit, title = 'IBO Exit', text = 'exit', style = shape.labeldown, location = location.abovebar, color = color.rgb(3, 235, 252), textcolor = color.rgb(0, 0, 0), size = size.tiny, force_overlay = true, editable = true)
 
 plot(ZZ_ON and showAllSignals and useEMA50 and (e2suDD_ON or iboDD_ON) ? ema50 : na,title = 'EMA 50',color = color.white,linewidth = 2,force_overlay = true)
 
@@ -2873,28 +2892,29 @@ if useEMA50
 // =====================
 // ✅ FINAL SAFE ALERT SYMBOL (NO JSON EVER)
 // =====================
-string alertSymbol =
-     isFCPO
-     ? syminfo.prefix + ":" + syminfo.ticker
-     : syminfo.tickerid
+//string alertSymbol = isFCPO ? syminfo.prefix + ":" + syminfo.ticker : syminfo.tickerid
 
+// =====================
+// ✅ FINAL SAFE ALERT SYMBOL (CLEAN FORMAT)
+// =====================
 
+// Always build symbol as EXCHANGE:TICKER
+string alertSymbol = syminfo.prefix + ":" + syminfo.ticker
 
 // =====================
 // 🏷️ ALERT HEADER (DISPLAY ONLY)
 // =====================
-string alertHeader =
-     isFCPO
-     ? alertSymbol + " | FCPO (Current Contract)"
-     : alertSymbol
+string alertHeader = isFCPO ? alertSymbol + " | FCPO (Current Contract)" : alertSymbol
 
 // =====================
 // 🔗 SAFE TRADINGVIEW CHART LINK
 // =====================
-string chartLink =
-     "https://www.tradingview.com/chart/?symbol=" +
-     str.replace_all(alertSymbol, ":", "%3A")
+//string chartLink = "https://www.tradingview.com/chart/?symbol=" + str.replace_all(alertSymbol, ":", "%3A")
 
+// =====================
+// 🔗 SAFE TRADINGVIEW CHART LINK
+// =====================
+string chartLink = "https://www.tradingview.com/chart/?symbol=" + alertSymbol
 
 // =====================================================
 // ⏰ CRYPTO DAILY FAILSAFE RESET
@@ -3497,22 +3517,24 @@ if e2suEntry and not e2suEntryLocked
             " | TP3: " + str.tostring(tp3) +
             " | TF: " + timeframe.period +
             " | Trade: " + riskLabel +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Buy: " + recBuy +
             " | Strong.Buy: " + recBuyStrong +
             " | Hold: " + recHold +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_E2Su
     )
@@ -3530,21 +3552,23 @@ if e2suExit and e2suEntryLocked
             alertHeader + " " + complianceLabel + "\n" +
             "EX.P: " + str.tostring(close) +
             " | TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Sell: " + recSell +
             " | Strong.Sell: " + recSellStrong +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_E2Su
     )
@@ -3571,22 +3595,24 @@ if e2soEntryAlertEnabled and entry and not e2soEntryLocked
             " | TP3: " + str.tostring(tp3) +
             " | TF: " + timeframe.period +
             " | Trade: " + riskLabel +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Buy: " + recBuy +
             " | Strong.Buy: " + recBuyStrong +
             " | Hold: " + recHold +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_E2SoEntry
     )
@@ -3608,22 +3634,24 @@ if e2soReentryAlertEnabled and e2soReentryState and not e2soReentryLocked
             " | TP3: " + str.tostring(tp3) +
             " | TF: " + timeframe.period +
             " | Trade: " + riskLabel + "\n" +
-            "Triggered: " + alertTime + "\n\n" +
+            "Triggered: " + alertTime + "\n" +
             "Analyst Buy: " + recBuy +
             " | Strong.Buy: " + recBuyStrong +
             " | Hold: " + recHold +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_E2SoReentry
     )
@@ -3640,21 +3668,23 @@ if e2soExitAlertEnabled and exitSignal and e2soEntryLocked
             alertHeader + " " + complianceLabel + "\n" +
             "EX.P: " + str.tostring(close) +
             " | TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Sell: " + recSell +
             " | Strong.Sell: " + recSellStrong +
             " | (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_E2SoExit
     )
@@ -3687,22 +3717,24 @@ if iboEntryAlert
             " | TP3: " + str.tostring(tp3) +
             " | TF: " + timeframe.period +
             " | Trade: " + riskLabel +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Buy: " + recBuy +
             " | Strong.Buy: " + recBuyStrong +
             " | Hold: " + recHold +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_IBO
     )
@@ -3719,21 +3751,23 @@ if iboExitAlert
             alertHeader + " " + complianceLabel + "\n" +
             "EX.P: " + str.tostring(close) +
             " | TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Sell: " + recSell +
             " | Strong.Sell: " + recSellStrong +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_IBO
     )
@@ -3750,7 +3784,7 @@ if zzCoreEntryVisible
     lastBar_ZZCore :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🟢 ENTRY\n" +
-            alertHeader + " " + complianceLabel + "\n\n" +
+            alertHeader + " " + complianceLabel + "\n" +
             "EP: " + str.tostring(close) +
             " | SL: " + str.tostring(stopLoss) +
             " | TP1: " + str.tostring(tp1) +
@@ -3758,22 +3792,24 @@ if zzCoreEntryVisible
             " | TP3: " + str.tostring(tp3) +
             " | TF: " + timeframe.period +
             " | Trade: " + riskLabel +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Buy: " + recBuy +
             " | Strong.Buy: " + recBuyStrong +
             " | Hold: " + recHold +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_ZZCore
     )
@@ -3787,7 +3823,7 @@ if zzCoreReEntryVisible
     lastBar_ZZCore :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🟡 REENTRY ♻️\n" +
-            alertHeader + " " + complianceLabel + "\n\n" +
+            alertHeader + " " + complianceLabel + "\n" +
             "EP: " + str.tostring(close) +
             " | SL: " + str.tostring(stopLoss) +
             " | TP1: " + str.tostring(tp1) +
@@ -3795,22 +3831,24 @@ if zzCoreReEntryVisible
             " | TP3: " + str.tostring(tp3) +
             " | TF: " + timeframe.period +
             " | Trade: " + riskLabel +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Buy: " + recBuy +
             " | Strong.Buy: " + recBuyStrong +
             " | Hold: " + recHold +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_ZZCore
     )
@@ -3823,24 +3861,26 @@ if zzCoreExitVisible
     lastBar_ZZCore :=f_fireAlert(
             true,
             alertSymbol + " | ZZ CORE 🟥| 🔴 EXIT ⛔\n" +
-            alertHeader + " " + complianceLabel + "\n\n" +
+            alertHeader + " " + complianceLabel + "\n" +
             "EX.P: " + str.tostring(close) +
             " | TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Sell: " + recSell +
             " | Strong.Sell: " + recSellStrong +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_ZZCore
     )
@@ -3856,7 +3896,7 @@ if zzMajorV2EntryVisible
     lastBar_ZZMajor :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MAJOR V2 🟪| 🟢 ENTRY\n" +
-            alertHeader + " " + complianceLabel + "\n\n" +
+            alertHeader + " " + complianceLabel + "\n" +
             "EP: " + str.tostring(close) +
             " | SL: " + str.tostring(stopLoss) +
             " | TP1: " + str.tostring(tp1) +
@@ -3864,7 +3904,7 @@ if zzMajorV2EntryVisible
             " | TP3: " + str.tostring(tp3) +
             " | TF: " + timeframe.period +
             " | Trade: " + riskLabel +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Buy: " + recBuy +
             " | Strong.Buy: " + recBuyStrong +
             " | Hold: " + recHold +
@@ -3876,9 +3916,11 @@ if zzMajorV2EntryVisible
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: #ZZMajorV2\n\n" +
+            "Tags: #ZZMajorV2\n" +
             "🔗 " + chartLink,
             lastBar_ZZMajor
     )
@@ -3891,24 +3933,26 @@ if zzMajorV2ExitVisible
     lastBar_ZZMajor :=f_fireAlert(
             true,
             alertSymbol + " | ZZ MAJOR V2 🟪| 🔴 EXIT ⛔ (Highest X)\n" +
-            alertHeader + " " + complianceLabel + "\n\n" +
+            alertHeader + " " + complianceLabel + "\n" +
             "EX.P: " + str.tostring(close) +
             " | TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Sell: " + recSell +
             " | Strong.Sell: " + recSellStrong +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: #ZZMajorV2 #HighestX\n\n" +
+            "Tags: #ZZMajorV2 #HighestX\n" +
             "🔗 " + chartLink,
             lastBar_ZZMajor
     )
@@ -3933,22 +3977,24 @@ if zzMinorEntryVisible
             " | TP3: " + str.tostring(tp3) +
             " | TF: " + timeframe.period +
             " | Trade: " + riskLabel +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Buy: " + recBuy +
             " | Strong.Buy: " + recBuyStrong +
             " | Hold: " + recHold +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_ZZMinor
     )
@@ -3964,21 +4010,23 @@ if zzMinorExitVisible
             alertHeader + " " + complianceLabel + "\n" +
             "EX.P: " + str.tostring(close) +
             " | TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
             "Analyst Sell: " + recSell +
             " | Strong.Sell: " + recSellStrong +
             " (" + recTotal + ")\n" +
             "Consensus: " + str.tostring(consensusScore) +
-            "/100 " + consensusLabel + "\n\n" +
+            "/100 " + consensusLabel + "\n" +
             "Momentum: " + momentumScore + "\n" +
             "Vol.state: " + pviStatus +
             " | " + osobStatus +
             " | " + obvStatus + "\n" +
             "Trend: " + emaStackShort + "\n" +
             "EZPScore: " + str.tostring(ezpScore) +
-            "/100 " + ezpRating + "\n\n" +
+            "/100 " + ezpRating + "\n" +            
+            "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "🔗 " + chartLink,
             lastBar_ZZMinor
     )
@@ -3996,20 +4044,20 @@ if ezpBTST_GAP_OK
     lastBar_BTST :=f_fireAlert(
             true,
             alertSymbol + " | Yesterday BTST 🟪 ✔ GAP CONFIRMED\n" +
-            alertHeader + " " + complianceLabel + "\n\n" +
+            alertHeader + " " + complianceLabel + "\n" +
             "Open ≥ Prev Close ✔\n" +
             "Price Accepted ✔\n" +
             "Exit (Trigger): " + str.tostring(btstEntryPrice) +
             " | Triggered: " + alertTime + "\n" +
-            " | TF: " + timeframe.period + "\n\n" +
-            "Volume Confirmed ✔\n\n" +
+            " | TF: " + timeframe.period + "\n" +
+            "Volume Confirmed ✔\n" +
             "Trend: " + emaStackShort + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "📌 ACTION:\n" +
             "• Hold/Exit: Current / Pullback\n" +
             "• SL: Below Prev Close\n" +
-            "• Mode: Momentum Continuation\n\n" +
+            "• Mode: Momentum Continuation\n" +
             "🔗 " + chartLink,
             lastBar_BTST
     )
@@ -4028,23 +4076,23 @@ if ezpBTST_PRO
             " | TF: " + timeframe.period + "\n" +
             " | MorningHigh: " + str.tostring(btstMorningHigh) + "\n" +
             "Vol > MorningMax ✔ | BuyPressure: " + bullBearLevel + "\n" +
-            "BullScore: " + str.tostring(bullScore) + "/100\n\n" +
+            "BullScore: " + str.tostring(bullScore) + "/100\n" +
             "Price vs Moving Averages:\n" +
             f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
             f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
-            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n" +
             "Market Zones:\n" +
             "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
-            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
             "Trade Risk:\n" +
-            f_entryRisk(emaATRCombo) + "\n\n" +
+            f_entryRisk(emaATRCombo) + "\n" +
             "Trend: " + emaStackShort + "\n" +
             dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
-            "Tags: " + ezpTags + "\n\n" +
+            "Tags: " + ezpTags + "\n" +
             "📌 PLAN:\n" +
             "• Entry: " + str.tostring(btstEntryPrice) + " (Trigger Price)\n" +
             "• SL: Below Morning High\n" +
-            "• Bias: Overnight Hold\n\n" +
+            "• Bias: Overnight Hold\n" +
             "🔗 " + chartLink,
             lastBar_BTST
     )
@@ -4064,23 +4112,23 @@ if utcBuy and not alert_UTC_Cross and not highPriorityAlertFired
             alertHeader + "\n" +
             "Price: " + str.tostring(close) + "\n" +
             "TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
 
             "Price vs Moving Averages:\n" +
             f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
             f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
-            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n" +
 
             "Market Zones:\n" +
             "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
-            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
 
             "Trade Risk:\n" +
-            f_entryRisk(emaATRCombo) + "\n\n" +
+            f_entryRisk(emaATRCombo) + "\n" +
 
             "Trend:\n" +
             "Trend: " + emaStackShort + "\n" +
-            dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
 
             "🔗 " + chartLink,
             lastBar_UTC
@@ -4095,23 +4143,23 @@ if dtcSell and not alert_UTC_Cross and not highPriorityAlertFired
             alertHeader + "\n" +
             "Price: " + str.tostring(close) + "\n" +
             "TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
 
             "Price vs Moving Averages:\n" +
             f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
             f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
-            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n" +
 
             "Market Zones:\n" +
             "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
-            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
 
             "Trade Risk:\n" +
-            f_entryRisk(emaATRCombo) + "\n\n" +
+            f_entryRisk(emaATRCombo) + "\n" +
 
             "Trend:\n" +
             "Trend: " + emaStackShort + "\n" +
-            dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
 
             "🔗 " + chartLink,
             lastBar_UTC
@@ -4126,23 +4174,23 @@ if bearWeakeningTrigger and not alert_UTC_Entry and not highPriorityAlertFired
             alertHeader + "\n" +
             "Price: " + str.tostring(close) + "\n" +
             "TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
 
             "Price vs Moving Averages:\n" +
             f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
             f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
-            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n" +
 
             "Market Zones:\n" +
             "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
-            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
 
             "Trade Risk:\n" +
-            f_entryRisk(emaATRCombo) + "\n\n" +
+            f_entryRisk(emaATRCombo) + "\n" +
 
             "Trend:\n" +
             "Trend: " + emaStackShort + "\n" +
-            dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
 
             "🔗 " + chartLink,
             lastBar_UTC
@@ -4157,23 +4205,23 @@ if utcReentry and not  alert_UTC_Reentry and not highPriorityAlertFired
             alertHeader + "\n" +
             "Price: " + str.tostring(close) + "\n" +
             "TF: " + timeframe.period +
-            " | Triggered: " + alertTime + "\n\n" +
+            " | Triggered: " + alertTime + "\n" +
 
             "Price vs Moving Averages:\n" +
             f_priceVsEMA("EMA20", ema20DistPct) + "\n" +
             f_priceVsEMA("EMA50", ema50DistPct) + "\n" +
-            f_emaComboText(emaComboDistPct, emaComboZone) + "\n\n" +
+            f_emaComboText(emaComboDistPct, emaComboZone) + "\n" +
 
             "Market Zones:\n" +
             "UTC Bull Zone: " + str.tostring(utcBullScore) + "% | " + utcBullState + "\n" +
-            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n\n" +
+            "DTC Bear Zone: " + str.tostring(utcBearScore) + "% | " + dtcBearState + "\n" +
 
             "Trade Risk:\n" +
-            f_entryRisk(emaATRCombo) + "\n\n" +
+            f_entryRisk(emaATRCombo) + "\n" +
 
             "Trend:\n" +
             "Trend: " + emaStackShort + "\n" +
-            dailyTrendLine + dailyMaruLine + majorBullLine + "\n\n" +
+            dailyTrendLine + dailyMaruLine + majorBullLine + "\n" +
 
             "🔗 " + chartLink,
             lastBar_UTC
@@ -4193,7 +4241,7 @@ if not utcBullZone
 alert_FCPO :=f_fireConfirmedAlert(
         fcpoExpiry7d and barstate.isconfirmed and ta.change(time("D")) != 0,
         "⏰ FCPO EXPIRY WARNING (7 DAYS)\n" +
-        fcpoDisplay + "\n\n" +
+        fcpoDisplay + "\n" +
         "Contract expires in " + str.tostring(daysToExpiry) + " days\n" +
         "📌 Action: Prepare rollover",
         alert_FCPO
@@ -4203,7 +4251,7 @@ alert_FCPO :=f_fireConfirmedAlert(
 alert_FCPO :=f_fireConfirmedAlert(
         fcpoExpiry3d and barstate.isconfirmed and ta.change(time("D")) != 0,
         "⚠️ FCPO EXPIRY WARNING (3 DAYS)\n" +
-        fcpoDisplay + "\n\n" +
+        fcpoDisplay + "\n" +
         "Contract expires in " + str.tostring(daysToExpiry) + " days\n" +
         "📌 Action: Reduce exposure",
         alert_FCPO
@@ -4213,7 +4261,7 @@ alert_FCPO :=f_fireConfirmedAlert(
 alert_FCPO :=f_fireConfirmedAlert(
         fcpoExpiry1d and barstate.isconfirmed and ta.change(time("D")) != 0,
         "🚨 FCPO EXPIRY TOMORROW\n" +
-        fcpoDisplay + "\n\n" +
+        fcpoDisplay + "\n" +
         "Final trading day approaching\n" +
         "📌 Action: CLOSE or ROLLOVER NOW",
         alert_FCPO

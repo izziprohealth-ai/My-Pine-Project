@@ -1219,7 +1219,8 @@ exitStoch = ta.crossunder(k, d) and k > 70 and d > 70
 /////////////////////////////////////////////////////
 lengthCCI = input.int(20, group = groupE2So)
 cciMA = ta.sma(close, lengthCCI)
-cci = (close - cciMA) / (0.015 * ta.dev(close, lengthCCI))
+cciDen = math.max(0.015 * ta.dev(close, lengthCCI), syminfo.mintick)
+cci = (close - cciMA) / cciDen
 exitCCI = cci > 200 and exitStoch
 
 /////////////////////////////////////////////////////
@@ -1874,7 +1875,8 @@ multRBB   = input.float(1.0, 'RBB Deviation Mult', group = groupE2Su)
 
 midBB_E2Su = ta.sma(close, lengthRBB)
 devBB_E2Su = multRBB * ta.stdev(close, lengthRBB)
-rbbOsc_E2Su = (close - midBB_E2Su) / devBB_E2Su * 100
+devBB_E2Su_safe = math.max(devBB_E2Su, syminfo.mintick)
+rbbOsc_E2Su = (close - midBB_E2Su) / devBB_E2Su_safe * 100
 
 // =====================================================
 // 🔐 STATE MEMORY

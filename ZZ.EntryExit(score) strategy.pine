@@ -77,7 +77,8 @@ ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
 
 lengthCCI = 20
 cciMA = ta.sma(close, lengthCCI)
-cci = (close - cciMA) / (0.015 * ta.dev(close, lengthCCI))
+cciDen = math.max(0.015 * ta.dev(close, lengthCCI), syminfo.mintick)
+cci = (close - cciMA) / cciDen
 
 smoothK = 3
 smoothD = 3
@@ -123,7 +124,8 @@ e2soExit = masterOn and e2soOn and e2soExitOn and (exitCCI or (high >= upperBB a
 // =====================================================
 midBB_E2Su = ta.sma(close, 20)
 devBB_E2Su = 1.0 * ta.stdev(close, 20)
-rbbOsc_E2Su = (close - midBB_E2Su) / devBB_E2Su * 100
+devBB_E2Su_safe = math.max(devBB_E2Su, syminfo.mintick)
+rbbOsc_E2Su = (close - midBB_E2Su) / devBB_E2Su_safe * 100
 
 var bool e2suInTrade = false
 var bool e2suReUsed = false

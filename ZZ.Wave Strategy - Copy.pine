@@ -1,0 +1,500 @@
+//@version=6
+strategy(
+     "ZZ.Wave Strategy Test",
+     overlay = true,
+     pyramiding = 20,
+     initial_capital = 100000,
+     default_qty_type = strategy.percent_of_equity,
+     default_qty_value = 100,
+     commission_type = strategy.commission.percent,
+     commission_value = 0.1
+)
+
+// =====================================================
+// 🔌 MASTER
+// =====================================================
+masterOn       = input.bool(true,  "Enable Master Signals")
+showAllSignals = input.bool(true,  "Show All Labels")
+
+// =====================================================
+// 🎛️ SIGNAL TOGGLES (ENTRY / RE-ENTRY / EXIT)
+// =====================================================
+grpMSo = "MSo ⬜ - Momentum Signal original"
+MSoOn        = input.bool(true,  "Enable MSo", group=grpMSo)
+MSoEntryOn   = input.bool(true,  "Up1", group=grpMSo)
+MSoReEntryOn = input.bool(true,  "Up2", group=grpMSo)
+MSoExitOn    = input.bool(true,  "Down", group=grpMSo)
+
+grpMSu = "MSu 🟩 - Momentum Signal upgraded"
+MSuOn        = input.bool(true,  "Enable MSu", group=grpMSu)
+MSuEntryOn   = input.bool(true,  "Up", group=grpMSu)
+MSuReEntryOn = false//input.bool(true,  "Re-entry", group=grpMSu)
+MSuExitOn    = input.bool(true,  "Down", group=grpMSu)
+
+grpTBO = "TBO 🟦 - Trend Break Out"
+TBOOn      = input.bool(true,  "Enable TBO", group=grpTBO)
+TBOEntryOn = input.bool(true,  "Up", group=grpTBO)
+TBOExitOn  = input.bool(true,  "Down", group=grpTBO)
+
+grpCore = "ZZ Core 🟥 - ZigZag Core"
+coreOn        = input.bool(true,  "Enable ZZ Core", group=grpCore)
+coreEntryOn   = input.bool(true,  "Up1", group=grpCore)
+coreReEntryOn = input.bool(true,  "Up2", group=grpCore)
+coreExitOn    = input.bool(true,  "Down", group=grpCore)
+
+grpMajorV2 = "ZZ Major V2 🟪 - ZigZag Major Version 2"
+majorV2On      = input.bool(true, "Enable ZZ Major V2", group=grpMajorV2)
+majorV2EntryOn = input.bool(true, "Up1", group=grpMajorV2)
+majorV2ExitOn  = input.bool(true, "Down", group=grpMajorV2)
+zzV2PullbackPct = input.float(3.0, "Down", step=0.1, group=grpMajorV2)
+
+grpMinor = "ZZ Minor 🟨 - ZigZag Minor"
+minorOn      = input.bool(true, "Enable ZZ Minor", group=grpMinor)
+minorEntryOn = input.bool(true, "Up", group=grpMinor)
+minorExitOn  = input.bool(true, "down", group=grpMinor)
+minorDepth   = input.int(5, "Pivot Depth", minval=1, group=grpMinor)
+
+grpEW = "ZZ Subwave 🟩 - ZigZag Subwave"
+ewOn      = false //input.bool(true, "Enable ZZ Subwave", group=grpEW)
+ewEntryOn = false //input.bool(true, "Entry", group=grpEW)
+ewExitOn  = false //input.bool(true, "Exit", group=grpEW)
+zzPercent  = input.float(0.5, "Min % Change", step=0.1, minval=0.1, group=grpEW)
+
+// =====================================================
+// 🧮 SHARED CALCULATIONS (extracted from master V2)
+// =====================================================
+ema10 = ta.ema(close, 10)
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+
+fastMA = ta.ema(close, 12)
+slowMA = ta.ema(close, 26)
+macd2 = fastMA - slowMA
+signal = ta.ema(macd2, 9)
+hist2 = macd2 - signal
+mom2 = close - close[10]
+ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+
+lengthCCI = 20
+cciMA = ta.sma(close, lengthCCI)
+cci = (close - cciMA) / (0.015 * ta.dev(close, lengthCCI))
+
+smoothK = 3
+smoothD = 3
+lengthRSI = 14
+lengthStoch = 14
+rsiBase = ta.rsi(close, lengthRSI)
+k = ta.sma(ta.stoch(rsiBase, rsiBase, rsiBase, lengthStoch), smoothK)
+d = ta.sma(k, smoothD)
+exitStoch = ta.crossunder(k, d) and k > 70 and d > 70
+exitCCI = cci > 200 and exitStoch
+
+lengthBB = 20
+mult = 2.0
+midBB2 = ta.sma(close, lengthBB)
+devBB2 = mult * ta.stdev(close, lengthBB)
+upperBB = midBB2 + devBB2
+
+dcUpper = ta.highest(high, 20)
+dcLower = ta.lowest(low, 20)
+dcMid2 = math.avg(dcUpper, dcLower)
+avgMid = math.avg(midBB2, dcMid2)
+
+volMA20MSo = ta.sma(volume, 20)
+volMATBO = ta.sma(volume, 20)
+
+utcBullZone = ema10 > ema50
+utcBearZone = ema10 < ema50
+utcZoneWidth = math.abs((ema10 + ao) - (ema50 - ao))
+utcWidthEMA = ta.ema(utcZoneWidth, 5)
+utcWidthDelta = utcWidthEMA - utcWidthEMA[1]
+widthEps = utcZoneWidth * 0.02
+dtcLongGate = (utcBearZone and utcWidthDelta > widthEps) or utcBullZone
+
+// =====================================================
+// ⬜ MSo (entry / re-entry / exit)
+// =====================================================
+MSoEntry = masterOn and MSoOn and MSoEntryOn and dtcLongGate and ta.crossover(macd2, signal) and macd2 < 0 and hist2 > 0 and cci > -100 and mom2 > ao and volume >= volMA20MSo
+MSoReentry = masterOn and MSoOn and MSoReEntryOn and dtcLongGate and ta.crossover(macd2, signal) and macd2 > 0 and hist2 > 0 and cci > 50 and mom2 > ao and ta.rsi(close, 14) > 50 and volume >= volMA20MSo
+MSoExit = masterOn and MSoOn and MSoExitOn and (exitCCI or (high >= upperBB and exitStoch))
+
+// =====================================================
+// 🟩 MSu (entry / re-entry / exit)
+// =====================================================
+midBB_MSu = ta.sma(close, 20)
+devBB_MSu = 1.0 * ta.stdev(close, 20)
+rbbOsc_MSu = (close - midBB_MSu) / devBB_MSu * 100
+
+MSuInTrade = strategy.position_size > 0
+var bool MSuReUsed = false
+if rbbOsc_MSu < -100
+    MSuInTrade := false
+    MSuReUsed := false
+
+MSuEntry = masterOn and MSuOn and MSuEntryOn and ta.crossover(macd2, signal) and rbbOsc_MSu > -100 and not MSuInTrade
+MSuReEntry = masterOn and MSuOn and MSuReEntryOn and ta.crossover(macd2, signal) and rbbOsc_MSu > 0 and not MSuInTrade and not MSuReUsed
+softExit = ta.crossunder(macd2, signal) and rbbOsc_MSu > 0
+hardExit = ta.crossunder(rbbOsc_MSu, -100)
+MSuExit = masterOn and MSuOn and MSuExitOn and MSuInTrade and (softExit or hardExit)
+if MSuEntry
+    MSuInTrade := true
+if MSuReEntry
+    MSuInTrade := true
+    MSuReUsed := true
+if MSuExit
+    MSuInTrade := false
+
+// =====================================================
+// 🟦 TBO (entry / exit)
+// =====================================================
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+TBORawBreakout = high > ta.highest(high, 1)[1] and volume > volMATBO
+TBOStructureOK = close > ema20
+TBOMomentumOK = macd2 > signal
+ema6 = ta.ema(close, 6)
+ema18 = ta.ema(close, 18)
+TBOConfirm = ema6 > ema18 and macdLine > signalLine
+
+TBODcUpper = ta.highest(high, 13)
+TBODrawPoint = close > TBODcUpper[1]
+TBOBbBasis = ta.sma(close, 20)
+TBOBbDev = ta.stdev(close, 20)
+TBOBbUpper = TBOBbBasis + TBOBbDev
+TBOVolMA5 = ta.sma(volume, 5)
+TBOVolPass = volume > TBOVolMA5
+TBOHighest = ta.highest(high, 9)
+TBOLowest = ta.lowest(low, 9)
+TBORange = math.max(TBOHighest - TBOLowest, syminfo.mintick)
+TBORsv = 100 * ((close - TBOLowest) / TBORange)
+TBOK = ta.rma(TBORsv, 3)
+TBOD = ta.rma(TBOK, 3)
+TBOJ = 3 * TBOK - 2 * TBOD
+TBOEma5 = ta.ema(close, 5)
+TBOEma10 = ta.ema(close, 10)
+TBOEma21 = ta.ema(close, 21)
+TBOTrendAligned = TBOEma5 >= TBOEma10 and close >= TBOEma21
+TBOMomentumAligned = TBOJ > TBOD
+TBOBuy1 = TBODrawPoint and TBOMomentumAligned and TBOTrendAligned and close >= TBOBbUpper and TBOVolPass
+
+TBOEntry = masterOn and TBOOn and TBOEntryOn and TBORawBreakout and TBOStructureOK and TBOMomentumOK and TBOConfirm and TBOBuy1
+TBOExit = masterOn and TBOOn and TBOExitOn and ta.crossunder(macdLine, signalLine) and volume < volMATBO and macdLine > 0
+
+// =====================================================
+// 🟥 ZZ Core (entry / re-entry / exit)
+// =====================================================
+majorLen = 55
+minorLen = 21
+reEntryCooldown = input.int(3, "Core Up2 cooldown", minval=1, group=grpCore)
+
+hh = ta.highest(high, majorLen)
+ll = ta.lowest(low, majorLen)
+marketUp = close > ll and hh > hh[1]
+marketDown = close < hh and ll < ll[1]
+structUp = close > ta.lowest(low, minorLen)
+structDown = close < ta.highest(high, minorLen)
+
+MSuCore = ta.rsi(close, 14) > 55
+MSoCore = ta.rsi(close, 14) < 45
+subwaveHL = low > low[1] and low[1] < low[2]
+subwaveLH = high < high[1] and high[1] > high[2]
+breakHigh = close > ta.highest(high, 10)[1]
+breakLow = close < ta.lowest(low, 10)[1]
+
+buyLabel = marketDown and structDown and MSoCore and not MSuCore and (subwaveLH or breakLow)
+sellLabel = marketUp and structUp and MSuCore and not MSoCore and (subwaveHL or breakHigh)
+reEntryLabel = marketUp and structUp and not MSoCore and MSuCore and (subwaveHL or breakHigh)
+
+var bool inTradeCore = false
+var int lastExitBar = na
+var bool reEntryUsed = false
+var bool hadEntry = false
+canReEnter = not inTradeCore and (na(lastExitBar) or bar_index > lastExitBar + reEntryCooldown)
+
+coreEntry = masterOn and coreOn and coreEntryOn and buyLabel and not inTradeCore
+if coreEntry
+    inTradeCore := true
+    reEntryUsed := false
+    hadEntry := true
+
+coreReEntry = masterOn and coreOn and coreReEntryOn and reEntryLabel and canReEnter and not reEntryUsed and hadEntry
+coreExit = masterOn and coreOn and coreExitOn and sellLabel and inTradeCore
+
+if coreReEntry
+    inTradeCore := true
+    reEntryUsed := true
+if coreExit
+    inTradeCore := false
+    lastExitBar := bar_index
+    reEntryUsed := false
+
+// =====================================================
+// 🟪 ZZ Major V2 (entry / exit)
+// =====================================================
+zzm2_midBB = ta.sma(close, 20)
+zzm2_dev = 2.0 * ta.stdev(close, 20)
+zzm2_upperBB = zzm2_midBB + zzm2_dev
+zzm2_lowerBB = zzm2_midBB - zzm2_dev
+zzm2_mid2BB = (zzm2_midBB + zzm2_lowerBB) / 2.0
+zzm2_mid3BB = (zzm2_mid2BB + zzm2_lowerBB) / 2.0
+zzm2_wma5l = ta.wma(low, 5)
+zzm2_wma5h = ta.wma(high, 5)
+zzMajorV2Entry_raw = ta.crossover(zzm2_wma5l, zzm2_mid3BB)
+zzMajorV2RedX = zzm2_wma5h >= zzm2_upperBB and high >= zzm2_upperBB
+
+var bool zzMajorV2InTrade = false
+var float zzMajorV2Peak = na
+var bool zzMajorV2Armed = false
+
+majorV2Entry = masterOn and majorV2On and majorV2EntryOn and zzMajorV2Entry_raw and not zzMajorV2InTrade
+if majorV2Entry
+    zzMajorV2InTrade := true
+    zzMajorV2Peak := na
+    zzMajorV2Armed := false
+
+if zzMajorV2InTrade and zzMajorV2RedX
+    zzMajorV2Peak := na(zzMajorV2Peak) ? high : math.max(zzMajorV2Peak, high)
+    zzMajorV2Armed := true
+
+zzMajorV2PullbackLevel = na(zzMajorV2Peak) ? na : zzMajorV2Peak * (1.0 - zzV2PullbackPct / 100.0)
+majorV2Exit = masterOn and majorV2On and majorV2ExitOn and zzMajorV2InTrade and zzMajorV2Armed and not na(zzMajorV2PullbackLevel) and close <= zzMajorV2PullbackLevel
+if majorV2Exit
+    zzMajorV2InTrade := false
+    zzMajorV2Peak := na
+    zzMajorV2Armed := false
+
+// =====================================================
+// 🟨 ZZ Minor (entry / exit)
+// =====================================================
+ph = ta.pivothigh(high, minorDepth, minorDepth)
+pl = ta.pivotlow(low, minorDepth, minorDepth)
+var int lastPivotType = 0 // 1 high, -1 low
+minorTurnUp = not na(pl) and lastPivotType != -1
+minorTurnDown = not na(ph) and lastPivotType != 1
+if not na(pl)
+    lastPivotType := -1
+if not na(ph)
+    lastPivotType := 1
+
+minorEntry = masterOn and minorOn and minorEntryOn and minorTurnUp
+minorExit = masterOn and minorOn and minorExitOn and minorTurnDown
+
+// =====================================================
+// 🟩 ZZ Subwave (entry / exit)
+// =====================================================
+trend = 0
+trend := na(trend[1]) ? 1 : trend[1]
+LL = 0.0
+LL := na(LL[1]) ? low : LL[1]
+HH = 0.0
+HH := na(HH[1]) ? high : HH[1]
+PivotChg = zzPercent * 0.01
+zigzag = float(na)
+
+if trend > 0
+    if high >= HH
+        HH := high
+    else if low < HH * (1 - PivotChg)
+        zigzag := high[1]
+        trend := -1
+        LL := low
+else
+    if low <= LL
+        LL := low
+    else if high > LL * (1 + PivotChg)
+        zigzag := low[1]
+        trend := 1
+        HH := high
+
+ewEntry = masterOn and ewOn and ewEntryOn and trend == 1 and not na(zigzag)
+ewExit = masterOn and ewOn and ewExitOn and trend == -1 and not na(zigzag)
+
+// =====================================================
+// 🧾 STRATEGY ORDERS
+// =====================================================
+if MSoEntry
+    strategy.entry("MSo-Up1", strategy.long)
+if MSoReentry
+    strategy.entry("MSo-Up2", strategy.long)
+if MSoExit
+    strategy.close("MSo-Up1")
+    strategy.close("MSo-Up2")
+
+if MSuEntry
+    strategy.entry("MSu-Up1", strategy.long)
+if MSuReEntry
+    strategy.entry("MSu-Up2", strategy.long)
+if MSuExit
+    strategy.close("MSu-Up1")
+    strategy.close("MSu-Up2")
+
+if TBOEntry
+    strategy.entry("TBO-Up", strategy.long)
+if TBOExit
+    strategy.close("TBO-Up")
+
+if coreEntry
+    strategy.entry("Core-Up1", strategy.long)
+if coreReEntry
+    strategy.entry("Core-Up2", strategy.long)
+if coreExit
+    strategy.close("Core-Up1")
+    strategy.close("Core-Up2")
+
+if majorV2Entry
+    strategy.entry("MajorV2-Up", strategy.long)
+if majorV2Exit
+    strategy.close("MajorV2-Up")
+
+if minorEntry
+    strategy.entry("Minor-Up", strategy.long)
+if minorExit
+    strategy.close("Minor-Up")
+
+if ewEntry
+    strategy.entry("EW-Up", strategy.long)
+if ewExit
+    strategy.close("EW-Up")
+
+// =====================================================
+// 👁️ LABELS
+// =====================================================
+plotshape(showAllSignals and MSoEntry,   title="MSo Up1",   text="Up",   style=shape.labelup,   location=location.belowbar, color=color.white, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and MSoReentry, title="MSo Up2", text="Up2", style=shape.labelup,   location=location.belowbar, color=color.white, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and MSoExit,    title="MSo Down",    text="down",    style=shape.labeldown, location=location.abovebar, color=color.white, textcolor=color.black, size=size.tiny)
+
+plotshape(showAllSignals and MSuEntry,   title="MSu Up",   text="Up",   style=shape.labelup,   location=location.belowbar, color=color.green, textcolor=color.white, size=size.tiny)
+//plotshape(showAllSignals and MSuReEntry, title="MSu ReEntry", text="reentry", style=shape.labelup,   location=location.belowbar, color=color.green, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and MSuExit,    title="MSu Down",    text="Down",    style=shape.labeldown, location=location.abovebar, color=color.green, textcolor=color.white, size=size.tiny)
+
+plotshape(showAllSignals and TBOEntry,    title="TBO Up",    text="Up",   style=shape.labelup,   location=location.belowbar, color=color.aqua, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and TBOExit,     title="TBO Down",     text="Down",    style=shape.labeldown, location=location.abovebar, color=color.aqua, textcolor=color.black, size=size.tiny)
+
+plotshape(showAllSignals and coreEntry,   title="ZZ Core Up1",   text="Up",   style=shape.labelup,   location=location.belowbar, color=color.fuchsia, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and coreReEntry, title="ZZ Core Up2", text="Up2", style=shape.labelup,   location=location.belowbar, color=color.fuchsia, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and coreExit,    title="ZZ Core Down",    text="Down",    style=shape.labeldown, location=location.abovebar, color=color.fuchsia, textcolor=color.white, size=size.tiny)
+
+plotshape(showAllSignals and majorV2Entry, title="ZZ MajorV2 Up", text="Up", style=shape.labelup,   location=location.belowbar, color=color.purple, textcolor=color.white, size=size.tiny)
+plotshape(showAllSignals and majorV2Exit,  title="ZZ MajorV2 Down",  text="Down",  style=shape.labeldown, location=location.abovebar, color=color.purple, textcolor=color.white, size=size.tiny)
+
+plotshape(showAllSignals and minorEntry, title="ZZ Minor Up", text="Up", style=shape.labelup,   location=location.belowbar, color=color.yellow, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and minorExit,  title="ZZ Minor Down",  text="Down",  style=shape.labeldown, location=location.abovebar, color=color.yellow, textcolor=color.black, size=size.tiny)
+
+plotshape(showAllSignals and ewEntry, title="ZZ Subwave Up", text="Up", style=shape.labelup,   location=location.belowbar, color=color.lime, textcolor=color.black, size=size.tiny)
+plotshape(showAllSignals and ewExit,  title="ZZ Subwave Down",  text="Down",  style=shape.labeldown, location=location.abovebar, color=color.lime, textcolor=color.black, size=size.tiny)
+
+// helper plots used by extracted engines
+plot(ema50, "EMA50", color=color.new(color.white, 40))
+plot(ema6, "TBO EMA6", color=color.new(color.yellow, 30))
+plot(ema18, "TBO EMA18", color=color.new(color.blue, 30))
+plot(avgMid, "MSo AvgMid", color=color.new(color.gray, 65))
+
+
+// =====================================================
+// 📘 HOW TO USE ZZ.Wave STRATEGY (INFO ONLY)
+// =====================================================
+groupNotesZZStrategy = "📘 How to Read ZZ.Wave Strategy"
+
+zzStrategyNotes = input.text_area(
+     title = "📖 ZZ.Wave Strategy Usage Guide (Read Only)",
+     defval =
+"ZZ.WAVE STRATEGY – MULTI-SIGNAL EXECUTION ENGINE\n\n" +
+
+"OVERVIEW\n" +
+"- This is a FULLY AUTOMATED strategy based on ZZ.Wave logic\n" +
+"- Combines multiple entry systems into ONE execution model\n" +
+"- Designed for BACKTESTING, OPTIMIZATION, and SYSTEM VALIDATION\n\n" +
+
+"IMPORTANT STRUCTURE\n\n" +
+
+"- Multiple systems run in parallel:\n" +
+"  • MSo (Momentum Signal Original)\n" +
+"  • MSu (Momentum Signal Upgraded)\n" +
+"  • TBO (Trend Breakout)\n" +
+"  • ZZ Core (Structure-based logic)\n" +
+"  • ZZ Major V2 (Trend expansion)\n" +
+"  • ZZ Minor (Swing pivots)\n\n" +
+
+"- Each system has its OWN entry + exit logic\n" +
+"- Strategy uses pyramiding (multiple positions allowed)\n\n" +
+
+"⚠️ PYRAMIDING LOGIC\n\n" +
+
+"- Pyramiding = 20 (can hold multiple entries)\n" +
+"- Different systems can enter simultaneously\n" +
+"- Example:\n" +
+"  MSo + TBO + Core → all can be active together\n\n" +
+
+"- This increases exposure significantly\n" +
+"- Must be controlled via position sizing\n\n" +
+
+"🎯 ENTRY TYPES\n\n" +
+
+"MSo\n" +
+"- Up1 = early momentum recovery\n" +
+"- Up2 = continuation entry\n\n" +
+
+"MSu\n" +
+"- Cleaner trend-following entry\n" +
+"- Uses RBB oscillator filtering\n\n" +
+
+"TBO\n" +
+"- Breakout + volume + EMA alignment\n" +
+"- Designed for strong expansion moves\n\n" +
+
+"ZZ Core\n" +
+"- Structure-based entries (price action)\n" +
+"- Includes re-entry with cooldown logic\n\n" +
+
+"ZZ Major V2\n" +
+"- Tracks major trend expansion\n" +
+"- Uses pullback-based exit (dynamic trailing)\n\n" +
+
+"ZZ Minor\n" +
+"- Short-term pivot-based entries\n" +
+"- More frequent but less reliable alone\n\n" +
+
+"🚪 EXIT LOGIC\n\n" +
+
+"- Each system exits independently\n" +
+"- Example:\n" +
+"  • MSo exit → does NOT close TBO trade\n" +
+"  • Core exit → does NOT affect MSu\n\n" +
+
+"- This creates layered trade management\n\n" +
+
+"📊 TREND FILTER\n\n" +
+
+"- Uses EMA10 vs EMA50 (UTC/DTC logic)\n" +
+"- UTC = bullish continuation zone\n" +
+"- DTC = bearish pressure zone\n\n" +
+
+"- Some entries are gated by trend condition\n\n" +
+
+"🧠 HOW TO USE PROPERLY\n\n" +
+
+"✓ Use this strategy for BACKTESTING, not blind live trading\n" +
+"✓ Optimize timeframe (Daily / 4H recommended)\n" +
+"✓ Adjust pyramiding if risk is too high\n" +
+"✓ Analyze which system contributes most profit\n\n" +
+
+"BEST WORKFLOW\n\n" +
+
+"1. Run backtest on selected market\n" +
+"2. Identify strongest performing signals (MSo / TBO / Core)\n" +
+"3. Disable weaker systems if needed\n" +
+"4. Optimize risk (position size + pyramiding)\n\n" +
+
+"IMPORTANT NOTES\n\n" +
+
+"- This strategy does NOT include stop loss by default\n" +
+"- Drawdown can be high due to pyramiding\n" +
+"- Results depend heavily on market conditions\n\n" +
+
+"- Always validate with forward testing\n\n" +
+
+"TIP\n" +
+"The goal is NOT to use everything —\n" +
+"The goal is to FIND which engine works best in each market.",
+     group = groupNotesZZStrategy
+)
